@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+  TEACHER
+  WARDEN
+}
+
+model User {
+  id             Int             @id @default(autoincrement())
+  username       String          @unique
+  hashedPassword String
+  role           Role
+  createdAt      DateTime        @default(now())
+  studentProfile StudentProfile?
+  teacherProfile TeacherProfile?
+  wardenProfile  WardenProfile?
+}
+
+model StudentProfile {
+  id               Int              @id @default(autoincrement())
+  userId           Int              @unique
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  branch           String
+  courseRegistered Boolean          @default(false)
+  tuitionPaid      Boolean          @default(false)
+  hostelPaid       Boolean          @default(false)
+  studentSubjects  StudentSubject[]
+  studentHostels   StudentHostel[]
+}
+
+model TeacherProfile {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  subject   Subject? @relation("TeacherSubject")
+}
+
+model WardenProfile {
+  id      Int     @id @default(autoincrement())
+  userId  Int     @unique
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name    String
+  hostel  Hostel? @relation("WardenHostel")
+}
+
+model Subject {
+  id              Int              @id @default(autoincrement())
+  name            String           @unique
+  teacherId       Int?             @unique
+  teacher         TeacherProfile?  @relation("TeacherSubject", fields: [teacherId], references: [id], onDelete: SetNull)
+  studentSubjects StudentSubject[]
+}
+
+model Hostel {
+  id             Int             @id @default(autoincrement())
+  name           String          @unique
+  wardenId       Int?            @unique
+  warden         WardenProfile?  @relation("WardenHostel", fields: [wardenId], references: [id], onDelete: SetNull)
+  studentHostels StudentHostel[]
+}
+
+model StudentSubject {
+  studentId Int
+  subjectId Int
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, subjectId])
+}
+
+model StudentHostel {
+  studentId Int
+  hostelId  Int
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostel    Hostel         @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, hostelId])
+}
