@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
 }
 
 enum Role {
@@ -38,19 +38,19 @@ model StudentProfile {
 }
 
 model TeacherProfile {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  subject   Subject? @relation("TeacherSubject")
+  id      Int      @id @default(autoincrement())
+  userId  Int      @unique
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name    String
+  subject Subject? @relation("TeacherSubject")
 }
 
 model WardenProfile {
-  id      Int     @id @default(autoincrement())
-  userId  Int     @unique
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name    String
-  hostel  Hostel? @relation("WardenHostel")
+  id     Int     @id @default(autoincrement())
+  userId Int     @unique
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+  hostel Hostel? @relation("WardenHostel")
 }
 
 model Subject {

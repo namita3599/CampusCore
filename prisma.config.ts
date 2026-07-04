@@ -7,6 +7,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // DIRECT_URL bypasses pgBouncer for Prisma CLI commands (db push / migrate)
+    // If you only have one URL, set both DATABASE_URL and DIRECT_URL to the same value
+    url: env("DIRECT_URL"),
   },
 });

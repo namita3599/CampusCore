@@ -1,24 +1,12 @@
 import { PrismaClient, Role } from "@prisma/client";
-import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import "dotenv/config";
 
-function parseConnectionUrl(url: string) {
-  const parsed = new URL(url);
-  return {
-    host: parsed.hostname,
-    port: parsed.port ? parseInt(parsed.port) : 3306,
-    user: decodeURIComponent(parsed.username),
-    password: decodeURIComponent(parsed.password),
-    database: parsed.pathname.slice(1),
-    connectionLimit: 5,
-  };
-}
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not set in .env");
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is not set in .env");
-
-const adapter = new PrismaMariaDb(parseConnectionUrl(databaseUrl));
+const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
@@ -68,10 +56,8 @@ async function main() {
   });
   console.log(`✅ Hostels created`);
 
-  // Demo teacher
+  // Demo teacher — create user first, then link subject
   const hashedTeacherPwd = await bcrypt.hash("teacher123", 12);
-
-  // First, create or find the teacher user (without subject)
   const teacherUser = await prisma.user.upsert({
     where: { username: "teacher_john" },
     update: {},
@@ -80,16 +66,12 @@ async function main() {
       hashedPassword: hashedTeacherPwd,
       role: Role.TEACHER,
       teacherProfile: {
-        create: {
-          name: "John Smith",
-        },
+        create: { name: "John Smith" },
       },
     },
     include: { teacherProfile: true },
   });
-
-  // Then connect the subject to the teacher profile (avoids circular creation issues)
-  if (teacherUser.teacherProfile && subject3) {
+  if (teacherUser.teacherProfile) {
     await prisma.subject.update({
       where: { id: subject3.id },
       data: { teacherId: teacherUser.teacherProfile.id },
@@ -97,9 +79,8 @@ async function main() {
   }
   console.log(`✅ Demo teacher created: ${teacherUser.username}`);
 
-  // Demo warden
+  // Demo warden — create user first, then link hostel
   const hashedWardenPwd = await bcrypt.hash("warden123", 12);
-
   const wardenUser = await prisma.user.upsert({
     where: { username: "warden_mary" },
     update: {},
@@ -108,15 +89,12 @@ async function main() {
       hashedPassword: hashedWardenPwd,
       role: Role.WARDEN,
       wardenProfile: {
-        create: {
-          name: "Mary Johnson",
-        },
+        create: { name: "Mary Johnson" },
       },
     },
     include: { wardenProfile: true },
   });
-
-  if (wardenUser.wardenProfile && hostel1) {
+  if (wardenUser.wardenProfile) {
     await prisma.hostel.update({
       where: { id: hostel1.id },
       data: { wardenId: wardenUser.wardenProfile.id },
