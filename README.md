@@ -1,6 +1,6 @@
 # 🎓 CampusCore — AI-ERP Integrated Student Management System
 
-A full-stack **Next.js 16** application with role-based access control for **Admin**, **Student**, **Teacher**, and **Warden** roles, backed by **MySQL** via **Prisma ORM 7** and secured with **NextAuth.js v4**.
+A full-stack **Next.js 16** application with role-based access control for **Admin**, **Student**, **Teacher**, and **Warden** roles, backed by **Supabase PostgreSQL** via **Prisma ORM 7** and secured with **NextAuth.js v4**.
 
 ---
 
@@ -22,8 +22,9 @@ A full-stack **Next.js 16** application with role-based access control for **Adm
 |---|---|
 | Framework | Next.js 16 (App Router + Server Actions) |
 | Auth | NextAuth.js v4 (CredentialsProvider + JWT) |
-| Database | MySQL via Prisma ORM 7 |
-| DB Adapter | `@prisma/adapter-mariadb` |
+| Database | Supabase (PostgreSQL) |
+| ORM | Prisma ORM 7 |
+| DB Adapter | `@prisma/adapter-pg` |
 | Styling | Tailwind CSS v4 |
 | Language | TypeScript |
 
@@ -34,7 +35,7 @@ A full-stack **Next.js 16** application with role-based access control for **Adm
 ### Prerequisites
 
 - Node.js 18+
-- MySQL 8+ running locally (or remote)
+- A [Supabase](https://supabase.com) account and project (free tier works)
 
 ### 1. Clone the repository
 
@@ -49,32 +50,42 @@ cd CampusCore/erp-student-management
 npm install
 ```
 
-### 3. Configure environment variables
+### 3. Set up Supabase
+
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Navigate to **Project Settings → Database → Connection string**
+3. Copy both connection strings as described below
+
+### 4. Configure environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your MySQL credentials:
+Edit `.env` with your Supabase credentials:
 
 ```env
-DATABASE_URL="mysql://root:yourpassword@localhost:3306/erp_db"
+# Transaction pooler (port 6543) — used by the Next.js app at runtime
+DATABASE_URL="postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+
+# Direct connection (port 5432) — used by Prisma CLI for db push / migrations
+DIRECT_URL="postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres"
+
 NEXTAUTH_SECRET="your-secret-here"   # openssl rand -base64 32
 NEXTAUTH_URL="http://localhost:3000"
 ```
 
-> **Create the database first:**
-> ```sql
-> CREATE DATABASE erp_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-> ```
+> **Why two URLs?**
+> - `DATABASE_URL` goes through pgBouncer (Supabase's connection pooler) — efficient for serverless/edge runtimes.
+> - `DIRECT_URL` is a plain direct connection used by Prisma CLI (`db push` / `migrate`) — pgBouncer doesn't support the DDL statements that schema changes require.
 
-### 4. Push schema to database
+### 5. Push schema to Supabase
 
 ```bash
 npx prisma db push
 ```
 
-### 5. Seed demo data
+### 6. Seed demo data
 
 ```bash
 npm run db:seed
@@ -89,7 +100,7 @@ This creates the following demo accounts:
 | Teacher | `teacher_john` | `teacher123` |
 | Warden | `warden_mary` | `warden123` |
 
-### 6. Start the development server
+### 7. Start the development server
 
 ```bash
 npm run dev
@@ -115,12 +126,12 @@ erp-student-management/
 │   ├── login/page.tsx                    # Universal login page
 │   ├── providers.tsx                     # NextAuth SessionProvider
 │   └── globals.css                       # Global styles
-├── lib/prisma.ts                         # Prisma singleton (MariaDB adapter)
+├── lib/prisma.ts                         # Prisma singleton (pg adapter)
 ├── middleware.ts                         # Role-based route protection
 ├── prisma/
-│   ├── schema.prisma                     # Database schema
+│   ├── schema.prisma                     # Database schema (PostgreSQL)
 │   └── seed.ts                           # Demo data seeder
-├── prisma.config.ts                      # Prisma 7 datasource config
+├── prisma.config.ts                      # Prisma 7 datasource config (DIRECT_URL)
 └── types/next-auth.d.ts                  # Session/JWT type augmentation
 ```
 
@@ -144,17 +155,30 @@ Unauthorized access is automatically redirected to the correct dashboard.
 ```bash
 npm run dev          # Start development server
 npm run build        # Build for production
-npm run db:push      # Push Prisma schema to database
+npm run db:push      # Push Prisma schema to Supabase
 npm run db:seed      # Seed demo data
 npm run db:studio    # Open Prisma Studio (database GUI)
 ```
 
 ---
 
-## 🏗 Database Schema
+## 🗄 Database Schema
 
 ```
 User ──┬── StudentProfile ──┬── StudentSubject ── Subject ── TeacherProfile ── User
        ├── TeacherProfile   └── StudentHostel  ── Hostel  ── WardenProfile  ── User
        └── WardenProfile
 ```
+
+All tables are hosted on **Supabase PostgreSQL** with row-level security available for future hardening.
+
+---
+
+## ☁️ Deployment
+
+This app is deployment-ready for **Vercel** (recommended with Supabase):
+
+1. Push your code to GitHub
+2. Import the repo on [vercel.com](https://vercel.com)
+3. Add the environment variables (`DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`)
+4. Deploy — Vercel + Supabase work natively together
