@@ -7,12 +7,12 @@ A full-stack **Next.js 16** application with role-based access control for **Adm
 ## ✨ Features
 
 - **Universal Login** with role selector (Admin / Student / Teacher / Warden)
-- **Role-based middleware** — each role is locked to its own dashboard
+- **Role-based proxy** — each role is locked to its own dashboard
 - **Admin Dashboard** — create users, manage subjects & hostels, view fee status
 - **Student Dashboard** — 3-step wizard: course registration → tuition → hostel fee
 - **Teacher Dashboard** — view assigned subject and enrolled students
 - **Warden Dashboard** — view assigned hostel and resident students
-- **Dark glassmorphism UI** built with Tailwind CSS
+- **Clean institutional UI** built with Tailwind CSS and shadcn/ui primitives
 
 ---
 
@@ -41,7 +41,7 @@ A full-stack **Next.js 16** application with role-based access control for **Adm
 
 ```bash
 git clone https://github.com/namita3599/CampusCore.git
-cd CampusCore/erp-student-management
+cd CampusCore
 ```
 
 ### 2. Install dependencies
@@ -62,7 +62,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with your Supabase credentials:
+Edit `.env` with your Supabase credentials and a real NextAuth secret:
 
 ```env
 # Transaction pooler (port 6543) — used by the Next.js app at runtime
@@ -79,11 +79,13 @@ NEXTAUTH_URL="http://localhost:3000"
 > - `DATABASE_URL` goes through pgBouncer (Supabase's connection pooler) — efficient for serverless/edge runtimes.
 > - `DIRECT_URL` is a plain direct connection used by Prisma CLI (`db push` / `migrate`) — pgBouncer doesn't support the DDL statements that schema changes require.
 
-### 5. Push schema to Supabase
+### 5. Sync schema to Supabase
 
 ```bash
 npx prisma db push
 ```
+
+This also regenerates the Prisma client in this project.
 
 ### 6. Seed demo data
 
@@ -127,11 +129,12 @@ erp-student-management/
 │   ├── providers.tsx                     # NextAuth SessionProvider
 │   └── globals.css                       # Global styles
 ├── lib/prisma.ts                         # Prisma singleton (pg adapter)
-├── middleware.ts                         # Role-based route protection
+├── proxy.ts                               # Role-based route protection
 ├── prisma/
 │   ├── schema.prisma                     # Database schema (PostgreSQL)
 │   └── seed.ts                           # Demo data seeder
 ├── prisma.config.ts                      # Prisma 7 datasource config (DIRECT_URL)
+├── .env.example                          # Example environment variables
 └── types/next-auth.d.ts                  # Session/JWT type augmentation
 ```
 
@@ -155,7 +158,8 @@ Unauthorized access is automatically redirected to the correct dashboard.
 ```bash
 npm run dev          # Start development server
 npm run build        # Build for production
-npm run db:push      # Push Prisma schema to Supabase
+npm run db:generate   # Generate Prisma client
+npm run db:push      # Sync Prisma schema to Supabase and regenerate client
 npm run db:seed      # Seed demo data
 npm run db:studio    # Open Prisma Studio (database GUI)
 ```
