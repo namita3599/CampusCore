@@ -15,10 +15,10 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden">
+    <div className="flex h-screen bg-zinc-50 overflow-hidden text-zinc-950">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
-        <div className="min-h-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div className="min-h-full bg-zinc-50">
           {children}
         </div>
       </main>

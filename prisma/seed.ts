@@ -105,16 +105,21 @@ async function main() {
   // Demo student
   const hashedStudentPwd = await bcrypt.hash("student123", 12);
   const studentUser = await prisma.user.upsert({
-    where: { username: "student_alice" },
+    where: { username: "co_cse-2026-001" },
     update: {},
     create: {
-      username: "student_alice",
+      username: "co_cse-2026-001",
       hashedPassword: hashedStudentPwd,
       role: Role.STUDENT,
       studentProfile: {
         create: {
           name: "Alice Kumar",
           branch: "Computer Science",
+          rollNumber: "CSE-2026-001",
+          phone: "9876543210",
+          guardianName: "Ramesh Kumar",
+          yearOfAdmission: 2026,
+          bloodGroup: "O+",
         },
       },
     },
@@ -127,7 +132,7 @@ async function main() {
   console.log("  Admin   → username: admin        | password: adminPassword123");
   console.log("  Teacher → username: teacher_john | password: teacher123");
   console.log("  Warden  → username: warden_mary  | password: warden123");
-  console.log("  Student → username: student_alice | password: student123");
+  console.log("  Student → username: co_cse-2026-001 | password: student123");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 

@@ -13,8 +13,19 @@ export default async function StudentDashboardPage() {
   const [profile, allSubjects] = await Promise.all([
     prisma.studentProfile.findUnique({
       where: { userId },
-      include: {
-        studentSubjects: { include: { subject: true } },
+      select: {
+        id: true,
+        name: true,
+        branch: true,
+        rollNumber: true,
+        phone: true,
+        guardianName: true,
+        yearOfAdmission: true,
+        bloodGroup: true,
+        courseRegistered: true,
+        tuitionPaid: true,
+        hostelPaid: true,
+        studentSubjects: { select: { subject: true } },
       },
     }),
     prisma.subject.findMany({ orderBy: { name: "asc" } }),
@@ -23,8 +34,8 @@ export default async function StudentDashboardPage() {
   if (!profile) {
     return (
       <div className="p-8 flex items-center justify-center min-h-96">
-        <div className="text-center glass rounded-2xl p-12">
-          <p className="text-slate-400">Student profile not found. Contact the admin.</p>
+        <div className="text-center rounded-2xl border border-zinc-200 bg-white p-12 shadow-sm">
+          <p className="text-zinc-500">Student profile not found. Contact the admin.</p>
         </div>
       </div>
     );

@@ -14,14 +14,16 @@ enum Role {
 }
 
 model User {
-  id             Int             @id @default(autoincrement())
-  username       String          @unique
-  hashedPassword String
-  role           Role
-  createdAt      DateTime        @default(now())
-  studentProfile StudentProfile?
-  teacherProfile TeacherProfile?
-  wardenProfile  WardenProfile?
+  id                  Int             @id @default(autoincrement())
+  username            String          @unique
+  email               String?         @unique
+  hashedPassword      String
+  role                Role
+  forcePasswordChange Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  studentProfile      StudentProfile?
+  teacherProfile      TeacherProfile?
+  wardenProfile       WardenProfile?
 }
 
 model StudentProfile {
@@ -30,6 +32,11 @@ model StudentProfile {
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   name             String
   branch           String
+  rollNumber       String?          @unique
+  phone            String?
+  guardianName     String?
+  yearOfAdmission  Int?
+  bloodGroup       String?
   courseRegistered Boolean          @default(false)
   tuitionPaid      Boolean          @default(false)
   hostelPaid       Boolean          @default(false)

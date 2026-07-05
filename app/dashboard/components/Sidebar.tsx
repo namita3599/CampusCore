@@ -109,9 +109,9 @@ export default function Sidebar() {
   const items = navItems[role] ?? [];
 
   return (
-    <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-slate-900/60 backdrop-blur-xl border-r border-white/8">
+    <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-zinc-200">
       {/* Logo */}
-      <div className="p-6 border-b border-white/8">
+      <div className="p-6 border-b border-zinc-200">
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${roleColors[role]} flex items-center justify-center shadow-lg`}>
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,8 +119,8 @@ export default function Sidebar() {
             </svg>
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-tight">ERP Portal</p>
-            <p className="text-slate-500 text-xs">Student Management</p>
+            <p className="font-bold text-sm leading-tight text-zinc-950">CampusCore</p>
+            <p className="text-zinc-500 text-xs">Student Management</p>
           </div>
         </div>
       </div>
@@ -135,11 +135,11 @@ export default function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
                 isActive
-                  ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/20"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  ? "bg-zinc-100 text-zinc-950 border border-zinc-200"
+                  : "text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100"
               }`}
             >
-              <span className={`${isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300"} transition-colors`}>
+              <span className={`${isActive ? "text-zinc-950" : "text-zinc-500 group-hover:text-zinc-900"} transition-colors`}>
                 {item.icon}
               </span>
               {item.label}
@@ -149,13 +149,13 @@ export default function Sidebar() {
       </nav>
 
       {/* User Profile */}
-      <div className="p-4 border-t border-white/8">
+      <div className="p-4 border-t border-zinc-200">
         <div className="flex items-center gap-3 mb-3">
           <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${roleColors[role]} flex items-center justify-center text-white font-bold text-sm uppercase`}>
             {session?.user?.username?.[0] ?? "U"}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{session?.user?.username}</p>
+            <p className="text-sm font-medium text-zinc-950 truncate">{session?.user?.username}</p>
             <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium ${roleBadge[role]}`}>
               {role}
             </span>
@@ -164,7 +164,7 @@ export default function Sidebar() {
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           id="signout-btn"
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all duration-200"
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

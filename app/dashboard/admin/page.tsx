@@ -11,7 +11,20 @@ import FeeStatusTable from "./components/FeeStatusTable";
 async function getAdminData() {
   const [students, teachers, wardens, subjects, hostels] = await Promise.all([
     prisma.studentProfile.findMany({
-      include: { user: { select: { username: true, createdAt: true } } },
+      select: {
+        id: true,
+        name: true,
+        branch: true,
+        rollNumber: true,
+        phone: true,
+        guardianName: true,
+        yearOfAdmission: true,
+        bloodGroup: true,
+        courseRegistered: true,
+        tuitionPaid: true,
+        hostelPaid: true,
+        user: { select: { username: true, createdAt: true } },
+      },
       orderBy: { id: "desc" },
     }),
     prisma.teacherProfile.findMany({
@@ -73,12 +86,13 @@ export default async function AdminDashboardPage() {
   ];
 
   return (
-    <div className="p-8 space-y-8 animate-fadeInUp">
+    <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">Manage users, subjects, and hostels</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">CampusCore</p>
+          <h1 className="text-2xl font-bold text-zinc-950">Admin Dashboard</h1>
+          <p className="text-zinc-500 text-sm mt-1">Manage users, subjects, and hostels</p>
         </div>
         <CreateUserModal subjects={subjects} hostels={hostels} />
       </div>
@@ -86,12 +100,12 @@ export default async function AdminDashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s) => (
-          <div key={s.label} className={`glass rounded-2xl p-5 bg-gradient-to-br ${s.color} border`}>
+          <div key={s.label} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <span className="text-2xl">{s.icon}</span>
-              <span className={`text-3xl font-bold ${s.text}`}>{s.value}</span>
+              <span className="text-3xl font-bold text-zinc-950">{s.value}</span>
             </div>
-            <p className="text-slate-400 text-sm font-medium">{s.label}</p>
+            <p className="text-zinc-500 text-sm font-medium">{s.label}</p>
           </div>
         ))}
       </div>
@@ -99,8 +113,8 @@ export default async function AdminDashboardPage() {
       {/* Students Table */}
       <section>
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-white">Students</h2>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">{students.length}</span>
+          <h2 className="text-lg font-semibold text-zinc-950">Students</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">{students.length}</span>
         </div>
         <StudentsTable students={students} />
       </section>
@@ -108,8 +122,8 @@ export default async function AdminDashboardPage() {
       {/* Teachers Table */}
       <section>
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-white">Teachers</h2>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">{teachers.length}</span>
+          <h2 className="text-lg font-semibold text-zinc-950">Teachers</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">{teachers.length}</span>
         </div>
         <TeachersTable teachers={teachers} />
       </section>
@@ -117,8 +131,8 @@ export default async function AdminDashboardPage() {
       {/* Wardens Table */}
       <section>
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-white">Wardens</h2>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20">{wardens.length}</span>
+          <h2 className="text-lg font-semibold text-zinc-950">Wardens</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">{wardens.length}</span>
         </div>
         <WardensTable wardens={wardens} />
       </section>
@@ -126,7 +140,7 @@ export default async function AdminDashboardPage() {
       {/* Fee Status */}
       <section>
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-white">Fee Status — All Students</h2>
+          <h2 className="text-lg font-semibold text-zinc-950">Fee Status — All Students</h2>
         </div>
         <FeeStatusTable students={students} />
       </section>
