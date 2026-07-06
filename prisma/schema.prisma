@@ -49,6 +49,7 @@ model TeacherProfile {
   userId  Int      @unique
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name    String
+  phone   String?
   subject Subject? @relation("TeacherSubject")
 }
 
@@ -57,6 +58,7 @@ model WardenProfile {
   userId Int     @unique
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   name   String
+  phone  String?
   hostel Hostel? @relation("WardenHostel")
 }
 

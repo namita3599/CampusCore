@@ -3,56 +3,77 @@ import { getServerSession } from "next-auth/next";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import StudentsTable from "../components/StudentsTable";
-import TeachersTable from "../components/TeachersTable";
-import WardensTable from "../components/WardensTable";
+import ExportButton from "../components/ExportButton";
+import CreateUserForms from "../components/CreateUserForms";
+import BulkUploadCard from "../components/BulkUploadCard";
 
-async function getAdminData() {
-  const [students, teachers, wardens] = await Promise.all([
-    prisma.studentProfile.findMany({
-      select: {
-        id: true,
-        name: true,
-        branch: true,
-        rollNumber: true,
-        phone: true,
-        guardianName: true,
-        yearOfAdmission: true,
-        bloodGroup: true,
-        courseRegistered: true,
-        tuitionPaid: true,
-        hostelPaid: true,
-        user: { select: { username: true, createdAt: true } },
-      },
-      orderBy: { id: "desc" },
-    }),
-    prisma.teacherProfile.findMany({
-      include: { user: { select: { username: true } }, subject: true },
-      orderBy: { id: "desc" },
-    }),
-    prisma.wardenProfile.findMany({
-      include: { user: { select: { username: true } }, hostel: true },
-      orderBy: { id: "desc" },
-    }),
+async function getPageData() {
+  const [studentCount, teacherCount, wardenCount, subjects, hostels] = await Promise.all([
+    prisma.studentProfile.count(),
+    prisma.teacherProfile.count(),
+    prisma.wardenProfile.count(),
+    prisma.subject.findMany({ orderBy: { name: "asc" } }),
+    prisma.hostel.findMany({ orderBy: { name: "asc" } }),
   ]);
-
-  return { students, teachers, wardens };
+  return { studentCount, teacherCount, wardenCount, subjects, hostels };
 }
 
 export default async function AdminUsersPage() {
   const session = await getServerSession(authOptions);
-
   if (session?.user?.role !== "ADMIN") redirect("/login");
 
-  const { students, teachers, wardens } = await getAdminData();
+  const { studentCount, teacherCount, wardenCount, subjects, hostels } = await getPageData();
+
+  const cards = [
+    {
+      type: "students" as const,
+      label: "Students",
+      count: studentCount,
+      icon: (
+        <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M12 14c-4.418 0-8 1.79-8 4v1h16v-1c0-2.21-3.582-4-8-4zM12 12a4 4 0 100-8 4 4 0 000 8z" />
+        </svg>
+      ),
+      description: "Full student list with roll numbers, branches, fee status & more.",
+      iconCls: "text-blue-600 bg-blue-100",
+      countCls: "text-blue-700",
+    },
+    {
+      type: "teachers" as const,
+      label: "Teachers",
+      count: teacherCount,
+      icon: (
+        <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      ),
+      description: "Teacher list with assigned subjects and usernames.",
+      iconCls: "text-violet-600 bg-violet-100",
+      countCls: "text-violet-700",
+    },
+    {
+      type: "wardens" as const,
+      label: "Wardens",
+      count: wardenCount,
+      icon: (
+        <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+      description: "Warden list with their assigned hostels and usernames.",
+      iconCls: "text-amber-600 bg-amber-100",
+      countCls: "text-amber-700",
+    },
+  ] as const;
 
   return (
-    <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
+    <div className="p-8 space-y-10 animate-fadeInUp text-zinc-950">
+      {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Admin</p>
           <h1 className="text-2xl font-bold text-zinc-950">Manage Users</h1>
-          <p className="text-zinc-500 text-sm mt-1">Review campus users and return to the admin dashboard anytime.</p>
+          <p className="text-zinc-500 text-sm mt-1">Download campus user lists or create new users below.</p>
         </div>
 
         <Link
@@ -66,29 +87,50 @@ export default async function AdminUsersPage() {
         </Link>
       </div>
 
-      <section>
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-zinc-950">Students</h2>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">{students.length}</span>
+      {/* Export All Card */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm flex items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-100 text-zinc-600">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-semibold text-zinc-900">Export All Users</p>
+            <p className="text-sm text-zinc-500 mt-0.5">
+              Downloads a single Excel workbook with three sheets — Students, Teachers &amp; Wardens.
+            </p>
+          </div>
         </div>
-        <StudentsTable students={students} />
-      </section>
+        <ExportButton type="all" label="All Users" size="md" />
+      </div>
 
-      <section>
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-zinc-950">Teachers</h2>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">{teachers.length}</span>
-        </div>
-        <TeachersTable teachers={teachers} />
-      </section>
+      {/* Per-role Download Cards */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        {cards.map(({ type, label, count, icon, description, iconCls, countCls }) => (
+          <div key={type} className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconCls}`}>
+                {icon}
+              </div>
+              <span className={`text-3xl font-bold ${countCls}`}>{count}</span>
+            </div>
+            <div>
+              <p className="font-semibold text-zinc-900">{label}</p>
+              <p className="text-sm text-zinc-500 mt-0.5">{description}</p>
+            </div>
+            <div className="mt-auto">
+              <ExportButton type={type} label={label} size="sm" />
+            </div>
+          </div>
+        ))}
+      </div>
 
-      <section>
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-zinc-950">Wardens</h2>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">{wardens.length}</span>
-        </div>
-        <WardensTable wardens={wardens} />
-      </section>
+      {/* Create User Forms */}
+      <CreateUserForms subjects={subjects} hostels={hostels} />
+
+      {/* Bulk Upload Component */}
+      <BulkUploadCard />
     </div>
   );
 }
