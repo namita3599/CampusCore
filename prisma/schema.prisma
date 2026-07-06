@@ -24,6 +24,8 @@ model User {
   studentProfile      StudentProfile?
   teacherProfile      TeacherProfile?
   wardenProfile       WardenProfile?
+  heldRooms           Room[]          @relation("RoomHeldByUser")
+  bookedRoom          Room?           @relation("RoomBookedByUser")
 }
 
 model StudentProfile {
@@ -76,6 +78,7 @@ model Hostel {
   wardenId       Int?            @unique
   warden         WardenProfile?  @relation("WardenHostel", fields: [wardenId], references: [id], onDelete: SetNull)
   studentHostels StudentHostel[]
+  rooms          Room[]
 }
 
 model StudentSubject {
@@ -94,4 +97,17 @@ model StudentHostel {
   hostel    Hostel         @relation(fields: [hostelId], references: [id], onDelete: Cascade)
 
   @@id([studentId, hostelId])
+}
+
+model Room {
+  id             String         @id @default(uuid())
+  roomNumber     String         @unique
+  status         String         @default("AVAILABLE") // "AVAILABLE", "HELD", "BOOKED"
+  heldByUserId   Int?
+  heldByUser     User?          @relation("RoomHeldByUser", fields: [heldByUserId], references: [id], onDelete: SetNull)
+  holdExpiresAt  DateTime?
+  bookedByUserId Int?           @unique
+  bookedByUser   User?          @relation("RoomBookedByUser", fields: [bookedByUserId], references: [id], onDelete: SetNull)
+  hostelId       Int
+  hostel         Hostel         @relation(fields: [hostelId], references: [id], onDelete: Cascade)
 }

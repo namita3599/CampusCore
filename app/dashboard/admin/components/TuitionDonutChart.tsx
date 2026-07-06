@@ -46,7 +46,7 @@ export default function TuitionDonutChart({ paid, unpaid }: Props) {
           ))}
         </Pie>
         <Tooltip
-          formatter={(v: number) => [`${v} students`, ""]}
+          formatter={(v: any) => [`${v} students`, ""]}
           contentStyle={{ borderRadius: 10, border: "1px solid #e4e4e7", fontSize: 13 }}
         />
         <Legend

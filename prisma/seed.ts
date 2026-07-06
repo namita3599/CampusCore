@@ -49,12 +49,41 @@ async function main() {
     update: {},
     create: { name: "Hostel A" },
   });
-  await prisma.hostel.upsert({
+  const hostel2 = await prisma.hostel.upsert({
     where: { name: "Hostel B" },
     update: {},
     create: { name: "Hostel B" },
   });
   console.log(`✅ Hostels created`);
+
+  // Create rooms for Hostel A
+  const roomsA = ["A-101", "A-102", "A-103", "A-104", "A-105"];
+  for (const rNum of roomsA) {
+    await prisma.room.upsert({
+      where: { roomNumber: rNum },
+      update: {},
+      create: {
+        roomNumber: rNum,
+        status: "AVAILABLE",
+        hostelId: hostel1.id,
+      },
+    });
+  }
+
+  // Create rooms for Hostel B
+  const roomsB = ["B-101", "B-102", "B-103", "B-104", "B-105"];
+  for (const rNum of roomsB) {
+    await prisma.room.upsert({
+      where: { roomNumber: rNum },
+      update: {},
+      create: {
+        roomNumber: rNum,
+        status: "AVAILABLE",
+        hostelId: hostel2.id,
+      },
+    });
+  }
+  console.log(`✅ Rooms created`);
 
   // Demo teacher — create user first, then link subject
   const hashedTeacherPwd = await bcrypt.hash("teacher123", 12);

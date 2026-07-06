@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { registerSubjects, payTuition, payHostel } from "./actions";
+import Link from "next/link";
 
 type Subject = { id: number; name: string };
 type StudentProfile = {
@@ -21,63 +20,32 @@ type StudentProfile = {
 
 export default function StudentDashboardClient({
   profile,
-  allSubjects,
 }: {
   profile: StudentProfile;
   allSubjects: Subject[];
 }) {
-  const [isPending, startTransition] = useTransition();
-  const [selectedSubjects, setSelectedSubjects] = useState<number[]>(
-    profile.studentSubjects.map((ss) => ss.subject.id)
-  );
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [step, setStep] = useState<"register" | "tuition" | "hostel" | "done">(
-    !profile.courseRegistered
-      ? "register"
-      : !profile.tuitionPaid
-      ? "tuition"
-      : !profile.hostelPaid
-      ? "hostel"
-      : "done"
-  );
-
-  const showMsg = (type: "success" | "error", text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 4000);
-  };
-
-  const handleRegister = () => {
-    startTransition(async () => {
-      try {
-        await registerSubjects(profile.id, selectedSubjects);
-        showMsg("success", "Subjects registered successfully!");
-        setStep("tuition");
-      } catch (e: any) {
-        showMsg("error", e.message);
-      }
-    });
-  };
-
-  const handlePayTuition = () => {
-    startTransition(async () => {
-      await payTuition(profile.id);
-      showMsg("success", "Tuition fee paid!");
-      setStep("hostel");
-    });
-  };
-
-  const handlePayHostel = () => {
-    startTransition(async () => {
-      await payHostel(profile.id);
-      showMsg("success", "Hostel fee paid!");
-      setStep("done");
-    });
-  };
-
   const statusItems = [
-    { label: "Course Registered", value: profile.courseRegistered, icon: "📚" },
-    { label: "Tuition Paid", value: profile.tuitionPaid, icon: "💳" },
-    { label: "Hostel Paid", value: profile.hostelPaid, icon: "🏠" },
+    {
+      label: "Course Registration",
+      value: profile.courseRegistered,
+      icon: "📚",
+      link: "/dashboard/student/register",
+      actionText: "Manage Courses →",
+    },
+    {
+      label: "Tuition Fee Paid",
+      value: profile.tuitionPaid,
+      icon: "💳",
+      link: "/dashboard/student/fees",
+      actionText: "Pay Fees →",
+    },
+    {
+      label: "Hostel Fee Paid",
+      value: profile.hostelPaid,
+      icon: "🏠",
+      link: "/dashboard/student/fees",
+      actionText: "Pay Fees →",
+    },
   ];
 
   return (
@@ -96,184 +64,113 @@ export default function StudentDashboardClient({
         {statusItems.map((item) => (
           <div
             key={item.label}
-            className={`rounded-2xl border bg-white p-5 shadow-sm ${
-              item.value
-                ? "border-emerald-200"
-                : "border-zinc-200"
+            className={`rounded-2xl border bg-white p-5 shadow-sm flex flex-col justify-between space-y-4 ${
+              item.value ? "border-emerald-250 bg-emerald-50/10" : "border-zinc-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-2xl">{item.icon}</span>
-              {item.value ? (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-                  ✓ Complete
-                </span>
-              ) : (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
-                  ⏳ Pending
-                </span>
-              )}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl">{item.icon}</span>
+                {item.value ? (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                    ✓ Settled
+                  </span>
+                ) : (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                    ⏳ Pending
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-bold text-zinc-800">{item.label}</p>
             </div>
-            <p className="text-sm font-medium text-zinc-700">{item.label}</p>
+
+            {!item.value && (
+              <Link
+                href={item.link}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+              >
+                {item.actionText}
+              </Link>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Message */}
-      {message && (
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${
-          message.type === "success"
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-            : "bg-red-50 text-red-700 border-red-200"
-        }`}>
-          {message.type === "success" ? "✅" : "❌"} {message.text}
-        </div>
-      )}
-
-      {/* Action Panel */}
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-zinc-950 mb-5">
-          {step === "register" && "Step 1 of 3 — Course Registration"}
-          {step === "tuition" && "Step 2 of 3 — Pay Tuition Fees"}
-          {step === "hostel" && "Step 3 of 3 — Pay Hostel Fees"}
-          {step === "done" && "🎉 All Steps Complete!"}
-        </h2>
-
-        {/* Progress bar */}
-        <div className="flex gap-2 mb-6">
-          {["register", "tuition", "hostel"].map((s, i) => (
-            <div key={s} className="flex-1 h-1.5 rounded-full overflow-hidden bg-zinc-100">
-              <div
-                className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                style={{
-                  width:
-                    (step === "register" && i === 0) ||
-                    (step === "tuition" && i <= 1) ||
-                    (step === "hostel" && i <= 2) ||
-                    step === "done"
-                      ? (step === "register" && i === 0) ? "100%" :
-                        (step === "tuition" && i === 0) ? "100%" :
-                        (step === "tuition" && i === 1) ? "50%" :
-                        (step === "hostel") ? "100%" :
-                        step === "done" ? "100%" : "0%"
-                      : "0%",
-                }}
-              />
+      {/* Main Grid: Profile & Enrolled Courses */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Profile Card */}
+        <div className="lg:col-span-1 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm space-y-4">
+          <h3 className="text-base font-bold text-zinc-950 pb-3 border-b border-zinc-100 flex items-center gap-2">
+            👤 Student Profile
+          </h3>
+          <div className="space-y-3 text-sm">
+            <div>
+              <span className="text-zinc-500 block text-xs">Roll Number</span>
+              <span className="font-semibold text-zinc-900">{profile.rollNumber ?? "N/A"}</span>
             </div>
-          ))}
+            <div>
+              <span className="text-zinc-500 block text-xs">Phone Number</span>
+              <span className="font-semibold text-zinc-900">{profile.phone ?? "N/A"}</span>
+            </div>
+            <div>
+              <span className="text-zinc-500 block text-xs">Guardian Name</span>
+              <span className="font-semibold text-zinc-900">{profile.guardianName ?? "N/A"}</span>
+            </div>
+            <div>
+              <span className="text-zinc-500 block text-xs">Admission Year</span>
+              <span className="font-semibold text-zinc-900">{profile.yearOfAdmission ?? "N/A"}</span>
+            </div>
+            <div>
+              <span className="text-zinc-500 block text-xs">Blood Group</span>
+              <span className="font-semibold text-zinc-900">{profile.bloodGroup ?? "N/A"}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Step 1 — Register */}
-        {step === "register" && (
-          <div className="space-y-4">
-            <p className="text-sm text-zinc-500">Select the subjects you want to enroll in:</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {allSubjects.map((subj) => {
-                const checked = selectedSubjects.includes(subj.id);
-                return (
-                  <label
-                    key={subj.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      checked
-                        ? "bg-zinc-100 border-zinc-300 text-zinc-950"
-                        : "bg-white border-zinc-200 text-zinc-600 hover:border-zinc-300"
-                    }`}
+        {/* Subjects Card */}
+        <div className="lg:col-span-2 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 className="text-base font-bold text-zinc-950 pb-3 border-b border-zinc-100 flex items-center gap-2">
+              📚 Enrolled Subjects
+            </h3>
+            {profile.studentSubjects.length === 0 ? (
+              <div className="py-8 text-center text-zinc-400 text-sm">
+                You have not registered for any subjects yet.
+                <div className="mt-3">
+                  <Link
+                    href="/dashboard/student/register"
+                    className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-semibold text-xs border border-zinc-200 rounded-lg px-3 py-1.5 hover:bg-zinc-50"
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => {
-                        setSelectedSubjects((prev) =>
-                          e.target.checked ? [...prev, subj.id] : prev.filter((id) => id !== subj.id)
-                        );
-                      }}
-                      className="accent-indigo-500 w-4 h-4"
-                    />
-                    <span className="text-sm font-medium">{subj.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-            {allSubjects.length === 0 && (
-              <p className="text-sm text-zinc-500 italic">No subjects available yet. Contact the admin.</p>
+                    Go to Course Registration
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                {profile.studentSubjects.map(({ subject }) => (
+                  <div
+                    key={subject.id}
+                    className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-800 flex items-center gap-2"
+                  >
+                    <span className="text-indigo-500">•</span>
+                    {subject.name}
+                  </div>
+                ))}
+              </div>
             )}
-            <button
-              onClick={handleRegister}
-              disabled={isPending || selectedSubjects.length === 0}
-              id="register-subjects-btn"
-              className="mt-2 rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-60"
-            >
-              {isPending ? "Registering..." : "Register Subjects →"}
-            </button>
           </div>
-        )}
 
-        {/* Step 2 — Tuition */}
-        {step === "tuition" && (
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200">
-              <p className="text-sm text-zinc-600 font-medium mb-1">Tuition Fee</p>
-              <p className="text-3xl font-bold text-zinc-950">₹45,000</p>
-              <p className="text-xs text-zinc-500 mt-1">Per semester — Academic Year 2024–25</p>
-            </div>
-            <button
-              onClick={handlePayTuition}
-              disabled={isPending}
-              id="pay-tuition-btn"
-              className="rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-60"
-            >
-              {isPending ? "Processing..." : "💳 Pay Tuition Fee →"}
-            </button>
-          </div>
-        )}
-
-        {/* Step 3 — Hostel */}
-        {step === "hostel" && (
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200">
-              <p className="text-sm text-zinc-600 font-medium mb-1">Hostel Fee</p>
-              <p className="text-3xl font-bold text-zinc-950">₹25,000</p>
-              <p className="text-xs text-zinc-500 mt-1">Per semester — includes meals & utilities</p>
-            </div>
-            <button
-              onClick={handlePayHostel}
-              disabled={isPending}
-              id="pay-hostel-btn"
-              className="rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-60"
-            >
-              {isPending ? "Processing..." : "🏠 Pay Hostel Fee →"}
-            </button>
-          </div>
-        )}
-
-        {/* Done */}
-        {step === "done" && (
-          <div className="text-center py-8 space-y-3">
-            <div className="text-5xl">🎓</div>
-            <p className="text-xl font-bold text-zinc-950">All done!</p>
-            <p className="text-zinc-500 text-sm">
-              You have successfully registered for courses and paid all fees. Good luck with your semester!
+          {profile.studentSubjects.length > 0 && (
+            <p className="text-xs text-zinc-500 mt-6 pt-4 border-t border-zinc-100">
+              Note: To update or make changes to your selected courses, navigate to the{" "}
+              <Link href="/dashboard/student/register" className="text-indigo-600 font-medium hover:underline">
+                Course Registration
+              </Link>{" "}
+              page.
             </p>
-          </div>
-        )}
-      </div>
-
-      {/* Enrolled Subjects */}
-      {profile.studentSubjects.length > 0 && (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h3 className="text-base font-semibold text-zinc-950 mb-4">My Enrolled Subjects</h3>
-          <div className="flex flex-wrap gap-2">
-            {profile.studentSubjects.map(({ subject }) => (
-              <span
-                key={subject.id}
-                className="px-3 py-1 rounded-full text-sm bg-zinc-100 text-zinc-700 border border-zinc-200"
-              >
-                {subject.name}
-              </span>
-            ))}
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

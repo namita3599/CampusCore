@@ -52,7 +52,7 @@ export default function BranchBarChart({ data }: Props) {
           width={145}
         />
         <Tooltip
-          formatter={(v: number) => [`${v} students`, "Enrolled"]}
+          formatter={(v: any) => [`${v} students`, "Enrolled"]}
           contentStyle={{ borderRadius: 10, border: "1px solid #e4e4e7", fontSize: 13 }}
           cursor={{ fill: "#f4f4f5" }}
         />
