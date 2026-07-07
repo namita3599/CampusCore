@@ -111,3 +111,10 @@ model Room {
   hostelId       Int
   hostel         Hostel         @relation(fields: [hostelId], references: [id], onDelete: Cascade)
 }
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+}

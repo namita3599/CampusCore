@@ -4,6 +4,7 @@ import { signOut } from "next-auth/react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const navItems: Record<string, { href: string; label: string; icon: React.ReactNode }[]> = {
   ADMIN: [
@@ -40,6 +41,15 @@ const navItems: Record<string, { href: string; label: string; icon: React.ReactN
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+    },
+    {
+      href: "/dashboard/admin/announcements",
+      label: "Announcements",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
         </svg>
       ),
     },
@@ -81,6 +91,15 @@ const navItems: Record<string, { href: string; label: string; icon: React.ReactN
         </svg>
       ),
     },
+    {
+      href: "/dashboard/student/announcements",
+      label: "Announcements",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+        </svg>
+      ),
+    },
   ],
   TEACHER: [
     {
@@ -92,6 +111,15 @@ const navItems: Record<string, { href: string; label: string; icon: React.ReactN
         </svg>
       ),
     },
+    {
+      href: "/dashboard/teacher/announcements",
+      label: "Announcements",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+        </svg>
+      ),
+    },
   ],
   WARDEN: [
     {
@@ -100,6 +128,15 @@ const navItems: Record<string, { href: string; label: string; icon: React.ReactN
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+    },
+    {
+      href: "/dashboard/warden/announcements",
+      label: "Announcements",
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
         </svg>
       ),
     },
@@ -120,14 +157,18 @@ const roleBadge: Record<string, string> = {
   WARDEN: "bg-violet-500/15 text-violet-400 border-violet-500/20",
 };
 
-export default function Sidebar() {
+interface SidebarProps {
+  announcements?: any[];
+}
+
+export default function Sidebar({ announcements = [] }: SidebarProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
   const role = session?.user?.role ?? "STUDENT";
   const items = navItems[role] ?? [];
 
   return (
-    <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-zinc-200">
+    <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800">
       {/* Logo */}
       <div className="p-6 border-b border-zinc-200">
         <div className="flex items-center gap-3">
@@ -154,11 +195,10 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
-                isActive
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive
                   ? "bg-zinc-100 text-zinc-950 border border-zinc-200"
                   : "text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100"
-              }`}
+                }`}
             >
               <span className={`${isActive ? "text-zinc-950" : "text-zinc-500 group-hover:text-zinc-900"} transition-colors`}>
                 {item.icon}
@@ -170,7 +210,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User Profile */}
-      <div className="p-4 border-t border-zinc-200">
+      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-3 mb-3">
           <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${roleColors[role]} flex items-center justify-center text-white font-bold text-sm uppercase`}>
             {session?.user?.username?.[0] ?? "U"}
@@ -182,6 +222,7 @@ export default function Sidebar() {
             </span>
           </div>
         </div>
+        <ThemeToggle className="w-full mb-2" />
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           id="signout-btn"

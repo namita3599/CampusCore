@@ -38,6 +38,21 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Theme color overrides for seamless dark mode */
+  --bg-zinc-50: oklch(0.985 0 0);
+  --bg-zinc-100: oklch(0.967 0.001 286.375);
+  --border-zinc-150: oklch(0.945 0.001 286.375);
+  --border-zinc-200: oklch(0.922 0 0);
+  --text-zinc-300: oklch(0.871 0 0);
+  --text-zinc-400: oklch(0.705 0.015 286.067);
+  --text-zinc-500: oklch(0.552 0.016 285.938);
+  --text-zinc-600: oklch(0.439 0.021 285.938);
+  --text-zinc-700: oklch(0.371 0.013 285.875);
+  --text-zinc-800: oklch(0.269 0.007 285.75);
+  --text-zinc-900: oklch(0.205 0.007 285.75);
+  --text-zinc-950: oklch(0.141 0.005 285.823);
+  --bg-white: #ffffff;
 }
 
 * {
@@ -189,6 +204,21 @@ input[type="password"]::-webkit-textfield-decoration-container {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Override tailwind colors with dynamic CSS custom properties */
+  --color-zinc-50: var(--bg-zinc-50);
+  --color-zinc-100: var(--bg-zinc-100);
+  --color-zinc-150: var(--border-zinc-150);
+  --color-zinc-200: var(--border-zinc-200);
+  --color-zinc-300: var(--text-zinc-300);
+  --color-zinc-400: var(--text-zinc-400);
+  --color-zinc-500: var(--text-zinc-500);
+  --color-zinc-600: var(--text-zinc-600);
+  --color-zinc-700: var(--text-zinc-700);
+  --color-zinc-800: var(--text-zinc-800);
+  --color-zinc-900: var(--text-zinc-900);
+  --color-zinc-950: var(--text-zinc-950);
+  --color-white: var(--bg-white);
 }
 
 .dark {
@@ -223,6 +253,21 @@ input[type="password"]::-webkit-textfield-decoration-container {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Dark mode overrides for dynamic theme colors */
+  --bg-zinc-50: oklch(0.141 0.005 285.823); /* dark background - zinc-950 */
+  --bg-zinc-100: oklch(0.205 0.007 285.75); /* zinc-900 */
+  --border-zinc-150: oklch(0.23 0.007 285.75); /* dark custom border */
+  --border-zinc-200: oklch(0.269 0.007 285.75); /* zinc-800 */
+  --text-zinc-300: oklch(0.371 0.013 285.875); /* zinc-700 */
+  --text-zinc-400: oklch(0.439 0.021 285.938); /* zinc-600 */
+  --text-zinc-500: oklch(0.552 0.016 285.938); /* zinc-500 */
+  --text-zinc-600: oklch(0.705 0.015 286.067); /* zinc-400 */
+  --text-zinc-700: oklch(0.871 0 0); /* zinc-300 */
+  --text-zinc-800: oklch(0.922 0 0); /* zinc-200 */
+  --text-zinc-900: oklch(0.967 0.001 286.375); /* zinc-100 */
+  --text-zinc-950: oklch(0.985 0 0); /* zinc-50 */
+  --bg-white: oklch(0.205 0.007 285.75); /* dark card bg - zinc-900 */
 }
 
 @layer base {

@@ -9,20 +9,20 @@ import nodemailer from "nodemailer";
 
 // ─── Create Student ──────────────────────────────────────────
 export async function createStudent(formData: FormData) {
-  const name         = formData.get("name")            as string;
-  const branch       = formData.get("branch")          as string;
-  const rollNumber   = formData.get("rollNumber")      as string;
-  const phone        = formData.get("phone")           as string;
-  const guardianName = formData.get("guardianName")    as string;
+  const name = formData.get("name") as string;
+  const branch = formData.get("branch") as string;
+  const rollNumber = formData.get("rollNumber") as string;
+  const phone = formData.get("phone") as string;
+  const guardianName = formData.get("guardianName") as string;
   const yearOfAdmission = formData.get("yearOfAdmission") as string;
-  const bloodGroup   = formData.get("bloodGroup")      as string;
-  const email        = formData.get("email")           as string;
+  const bloodGroup = formData.get("bloodGroup") as string;
+  const email = formData.get("email") as string;
 
   if (!name || !branch || !rollNumber || !phone || !guardianName || !yearOfAdmission || !email) {
     throw new Error("All fields are required.");
   }
 
-  const username     = (branch.substring(0, 2) + rollNumber).toLowerCase();
+  const username = (branch.substring(0, 2) + rollNumber).toLowerCase();
   const admissionYear = Number(yearOfAdmission);
 
   if (!Number.isInteger(admissionYear) || admissionYear < 2000 || admissionYear > 2100) {
@@ -114,9 +114,9 @@ export async function createStudent(formData: FormData) {
 
 // ─── Create Teacher ──────────────────────────────────────────
 export async function createTeacher(formData: FormData) {
-  const name      = formData.get("name")      as string;
-  const phone     = formData.get("phone")     as string;
-  const email     = formData.get("email")     as string;
+  const name = formData.get("name") as string;
+  const phone = formData.get("phone") as string;
+  const email = formData.get("email") as string;
   const subjectId = formData.get("subjectId") as string;
 
   if (!name || !phone || !email) {
@@ -125,10 +125,10 @@ export async function createTeacher(formData: FormData) {
 
   // Generate username: first word of name + 4 random hex chars
   const baseUsername = name.split(" ")[0].toLowerCase().replace(/[^a-z]/g, "");
-  const suffix       = randomBytes(2).toString("hex");
-  const username     = `${baseUsername}_${suffix}`;
+  const suffix = randomBytes(2).toString("hex");
+  const username = `${baseUsername}_${suffix}`;
 
-  const tempPassword   = randomBytes(4).toString("hex");
+  const tempPassword = randomBytes(4).toString("hex");
   const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
   await prisma.$transaction(async (tx) => {
@@ -196,9 +196,9 @@ export async function createTeacher(formData: FormData) {
 
 // ─── Create Warden ───────────────────────────────────────────
 export async function createWarden(formData: FormData) {
-  const name     = formData.get("name")     as string;
-  const phone    = formData.get("phone")    as string;
-  const email    = formData.get("email")    as string;
+  const name = formData.get("name") as string;
+  const phone = formData.get("phone") as string;
+  const email = formData.get("email") as string;
   const hostelId = formData.get("hostelId") as string;
 
   if (!name || !phone || !email) {
@@ -207,10 +207,10 @@ export async function createWarden(formData: FormData) {
 
   // Generate username: first word of name + 4 random hex chars
   const baseUsername = name.split(" ")[0].toLowerCase().replace(/[^a-z]/g, "");
-  const suffix       = randomBytes(2).toString("hex");
-  const username     = `${baseUsername}_${suffix}`;
+  const suffix = randomBytes(2).toString("hex");
+  const username = `${baseUsername}_${suffix}`;
 
-  const tempPassword   = randomBytes(4).toString("hex");
+  const tempPassword = randomBytes(4).toString("hex");
   const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
   await prisma.$transaction(async (tx) => {
@@ -332,4 +332,32 @@ export async function assignStudentToHostel(formData: FormData) {
   });
 
   revalidatePath("/dashboard/admin");
+}
+
+// ─── Create Announcement ──────────────────────────────────────
+export async function createAnnouncement(formData: FormData) {
+  const title = formData.get("title") as string;
+  const content = formData.get("content") as string;
+
+  if (!title || !content) {
+    throw new Error("Title and content are required.");
+  }
+
+  await prisma.announcement.create({
+    data: {
+      title,
+      content,
+    },
+  });
+
+  revalidatePath("/dashboard");
+}
+
+// ─── Delete Announcement ──────────────────────────────────────
+export async function deleteAnnouncement(id: number) {
+  await prisma.announcement.delete({
+    where: { id },
+  });
+
+  revalidatePath("/dashboard");
 }
