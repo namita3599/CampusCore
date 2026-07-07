@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
+import SubjectsSearchWrapper from "../components/SubjectsSearchWrapper";
 
 // ─── Actions inside Page (Server Action) ──────────────────────────────────────
 async function handleCreateSubject(formData: FormData) {
@@ -51,7 +52,14 @@ export default async function AdminSubjectsPage() {
 
   const [subjects, teachers] = await Promise.all([
     prisma.subject.findMany({
-      include: { teacher: true },
+      include: {
+        teacher: true,
+        studentSubjects: {
+          include: {
+            student: true,
+          },
+        },
+      },
       orderBy: { name: "asc" },
     }),
     prisma.teacherProfile.findMany({
@@ -120,58 +128,7 @@ export default async function AdminSubjectsPage() {
           {subjects.length === 0 ? (
             <div className="p-12 text-center text-zinc-500 text-sm">No subjects created yet.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="bg-zinc-50 text-zinc-500 font-semibold border-b border-zinc-150">
-                    <th className="px-6 py-3.5">Subject</th>
-                    <th className="px-6 py-3.5">Assigned Teacher</th>
-                    <th className="px-6 py-3.5 text-right">Assign/Update</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {subjects.map((sub) => (
-                    <tr key={sub.id} className="hover:bg-zinc-50/50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-zinc-950">{sub.name}</td>
-                      <td className="px-6 py-4">
-                        {sub.teacher ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            👨‍🏫 {sub.teacher.name}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-400 text-xs italic">Unassigned</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <form action={handleAssignTeacher} className="inline-flex items-center gap-2">
-                          <input type="hidden" name="subjectId" value={sub.id} />
-                          <select
-                            name="teacherId"
-                            className="bg-white border border-zinc-200 text-zinc-900 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                            defaultValue={sub.teacherId ?? ""}
-                            suppressHydrationWarning
-                          >
-                            <option value="">— Unassign —</option>
-                            {teachers.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="submit"
-                            className="rounded-lg bg-zinc-100 border border-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-200 transition-colors"
-                            suppressHydrationWarning
-                          >
-                            Apply
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <SubjectsSearchWrapper subjects={subjects as any} teachers={teachers} />
           )}
         </div>
       </div>

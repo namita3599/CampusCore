@@ -12,7 +12,7 @@ export default async function WardenDashboardPage() {
   const warden = await prisma.wardenProfile.findUnique({
     where: { userId },
     include: {
-      hostel: {
+      hostels: {
         include: {
           studentHostels: {
             include: {
@@ -36,8 +36,9 @@ export default async function WardenDashboardPage() {
     );
   }
 
-  const hostel = warden.hostel;
-  const hostelStudents = hostel?.studentHostels ?? [];
+  const hostels = warden.hostels ?? [];
+  const hostelNames = hostels.map((h) => h.name).join(", ");
+  const hostelStudents = hostels.flatMap((h) => h.studentHostels ?? []);
 
   return (
     <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
@@ -49,13 +50,14 @@ export default async function WardenDashboardPage() {
       </div>
 
       {/* Info Cards */}
+      {/* Info Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <p className="text-sm text-zinc-600 font-medium mb-2">🏛️ Assigned Hostel</p>
-          {hostel ? (
+          <p className="text-sm text-zinc-600 font-medium mb-2">🏛️ Assigned Hostel(s)</p>
+          {hostels.length > 0 ? (
             <>
-              <p className="text-2xl font-bold text-zinc-950">{hostel.name}</p>
-              <p className="text-xs text-zinc-500 mt-1">Hostel ID: #{hostel.id}</p>
+              <p className="text-2xl font-bold text-zinc-950">{hostelNames}</p>
+              <p className="text-xs text-zinc-500 mt-1">Total managed: {hostels.length}</p>
             </>
           ) : (
             <p className="text-zinc-500 italic text-sm">No hostel assigned yet. Contact the admin.</p>
@@ -65,15 +67,15 @@ export default async function WardenDashboardPage() {
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-zinc-600 font-medium mb-2">👥 Residents</p>
           <p className="text-2xl font-bold text-zinc-950">{hostelStudents.length}</p>
-          <p className="text-xs text-zinc-500 mt-1">Students currently in your hostel</p>
+          <p className="text-xs text-zinc-500 mt-1">Students currently in your hostel(s)</p>
         </div>
       </div>
 
       {/* Students Table */}
-      {hostel && (
+      {hostels.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-lg font-semibold text-zinc-950">Residents of {hostel.name}</h2>
+            <h2 className="text-lg font-semibold text-zinc-950">Residents of {hostelNames}</h2>
             <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">
               {hostelStudents.length}
             </span>
@@ -81,7 +83,7 @@ export default async function WardenDashboardPage() {
 
           {hostelStudents.length === 0 ? (
             <div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center shadow-sm">
-              <p className="text-zinc-500 text-sm">No students have been assigned to this hostel yet.</p>
+              <p className="text-zinc-500 text-sm">No students have been assigned to these hostels yet.</p>
             </div>
           ) : (
             <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-sm">

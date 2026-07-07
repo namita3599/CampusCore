@@ -47,27 +47,27 @@ model StudentProfile {
 }
 
 model TeacherProfile {
+  id       Int      @id @default(autoincrement())
+  userId   Int      @unique
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name     String
+  phone    String?
+  subjects Subject[] @relation("TeacherSubject")
+}
+
+model WardenProfile {
   id      Int      @id @default(autoincrement())
   userId  Int      @unique
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name    String
   phone   String?
-  subject Subject? @relation("TeacherSubject")
-}
-
-model WardenProfile {
-  id     Int     @id @default(autoincrement())
-  userId Int     @unique
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name   String
-  phone  String?
-  hostel Hostel? @relation("WardenHostel")
+  hostels Hostel[] @relation("WardenHostel")
 }
 
 model Subject {
   id              Int              @id @default(autoincrement())
   name            String           @unique
-  teacherId       Int?             @unique
+  teacherId       Int?
   teacher         TeacherProfile?  @relation("TeacherSubject", fields: [teacherId], references: [id], onDelete: SetNull)
   studentSubjects StudentSubject[]
 }
@@ -75,7 +75,7 @@ model Subject {
 model Hostel {
   id             Int             @id @default(autoincrement())
   name           String          @unique
-  wardenId       Int?            @unique
+  wardenId       Int?
   warden         WardenProfile?  @relation("WardenHostel", fields: [wardenId], references: [id], onDelete: SetNull)
   studentHostels StudentHostel[]
   rooms          Room[]

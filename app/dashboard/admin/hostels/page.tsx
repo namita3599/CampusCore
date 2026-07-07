@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
+import HostelsSearchWrapper from "../components/HostelsSearchWrapper";
 
 // ─── Actions inside Page (Server Action) ──────────────────────────────────────
 async function handleCreateHostel(formData: FormData) {
@@ -51,7 +52,15 @@ export default async function AdminHostelsPage() {
 
   const [hostels, wardens] = await Promise.all([
     prisma.hostel.findMany({
-      include: { warden: true },
+      include: {
+        warden: true,
+        rooms: true,
+        studentHostels: {
+          include: {
+            student: true,
+          },
+        },
+      },
       orderBy: { name: "asc" },
     }),
     prisma.wardenProfile.findMany({
@@ -120,58 +129,7 @@ export default async function AdminHostelsPage() {
           {hostels.length === 0 ? (
             <div className="p-12 text-center text-zinc-500 text-sm">No hostels created yet.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr className="bg-zinc-50 text-zinc-500 font-semibold border-b border-zinc-150">
-                    <th className="px-6 py-3.5">Hostel</th>
-                    <th className="px-6 py-3.5">Assigned Warden</th>
-                    <th className="px-6 py-3.5 text-right">Assign/Update</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {hostels.map((hostel) => (
-                    <tr key={hostel.id} className="hover:bg-zinc-50/50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-zinc-950">{hostel.name}</td>
-                      <td className="px-6 py-4">
-                        {hostel.warden ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
-                            🏠 {hostel.warden.name}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-400 text-xs italic">Unassigned</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <form action={handleAssignWarden} className="inline-flex items-center gap-2">
-                          <input type="hidden" name="hostelId" value={hostel.id} />
-                          <select
-                            name="wardenId"
-                            className="bg-white border border-zinc-200 text-zinc-900 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                            defaultValue={hostel.wardenId ?? ""}
-                            suppressHydrationWarning
-                          >
-                            <option value="">— Unassign —</option>
-                            {wardens.map((w) => (
-                              <option key={w.id} value={w.id}>
-                                {w.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="submit"
-                            className="rounded-lg bg-zinc-100 border border-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-200 transition-colors"
-                            suppressHydrationWarning
-                          >
-                            Apply
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <HostelsSearchWrapper hostels={hostels as any} wardens={wardens} />
           )}
         </div>
       </div>

@@ -350,7 +350,7 @@ export async function createAnnouncement(formData: FormData) {
     },
   });
 
-  revalidatePath("/dashboard");
+  revalidatePath("/dashboard", "layout");
 }
 
 // ─── Delete Announcement ──────────────────────────────────────
@@ -359,5 +359,380 @@ export async function deleteAnnouncement(id: number) {
     where: { id },
   });
 
-  revalidatePath("/dashboard");
+  revalidatePath("/dashboard", "layout");
+}
+
+// ─── Update Student ───────────────────────────────────────────
+export async function updateStudent(
+  studentId: number,
+  data: {
+    name: string;
+    guardianName: string | null;
+    phone: string | null;
+    email: string;
+    hostelId: number | null;
+  }
+) {
+  const profile = await prisma.studentProfile.findUnique({
+    where: { id: studentId },
+    select: { userId: true },
+  });
+  if (!profile) throw new Error("Student not found.");
+
+  // Check email uniqueness excluding this user
+  const duplicateEmail = await prisma.user.findFirst({
+    where: {
+      email: data.email,
+      NOT: { id: profile.userId },
+    },
+  });
+  if (duplicateEmail) throw new Error(`Email ${data.email} is already in use.`);
+
+  await prisma.$transaction(async (tx) => {
+    // Update User email
+    await tx.user.update({
+      where: { id: profile.userId },
+      data: { email: data.email },
+    });
+
+    // Update StudentProfile fields
+    await tx.studentProfile.update({
+      where: { id: studentId },
+      data: {
+        name: data.name,
+        guardianName: data.guardianName,
+        phone: data.phone,
+      },
+    });
+
+    // Update Hostel assignment
+    await tx.studentHostel.deleteMany({
+      where: { studentId },
+    });
+
+    if (data.hostelId) {
+      await tx.studentHostel.create({
+        data: {
+          studentId,
+          hostelId: data.hostelId,
+        },
+      });
+    }
+  });
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/users");
+}
+
+// ─── Delete Student ───────────────────────────────────────────
+export async function deleteStudent(studentId: number) {
+  const profile = await prisma.studentProfile.findUnique({
+    where: { id: studentId },
+    select: { userId: true },
+  });
+
+  if (profile) {
+    await prisma.$transaction(async (tx) => {
+      // Clear room bookings and holds by this student and reset status to AVAILABLE
+      await tx.room.updateMany({
+        where: {
+          OR: [
+            { heldByUserId: profile.userId },
+            { bookedByUserId: profile.userId },
+          ],
+        },
+        data: {
+          heldByUserId: null,
+          bookedByUserId: null,
+          status: "AVAILABLE",
+          holdExpiresAt: null,
+        },
+      });
+
+      // Delete user (cascades to StudentProfile, StudentHostel, StudentSubject)
+      await tx.user.delete({
+        where: { id: profile.userId },
+      });
+    });
+  }
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/users");
+}
+
+// ─── Update Teacher ───────────────────────────────────────────
+export async function updateTeacher(
+  teacherId: number,
+  data: {
+    name: string;
+    username: string;
+    email: string;
+    phone: string | null;
+    subjectIds: number[];
+  }
+) {
+  const profile = await prisma.teacherProfile.findUnique({
+    where: { id: teacherId },
+    select: { userId: true },
+  });
+  if (!profile) throw new Error("Teacher not found.");
+
+  // Check username uniqueness
+  const duplicateUser = await prisma.user.findFirst({
+    where: {
+      username: data.username,
+      NOT: { id: profile.userId },
+    },
+  });
+  if (duplicateUser) throw new Error(`Username ${data.username} is already taken.`);
+
+  // Check email uniqueness
+  const duplicateEmail = await prisma.user.findFirst({
+    where: {
+      email: data.email,
+      NOT: { id: profile.userId },
+    },
+  });
+  if (duplicateEmail) throw new Error(`Email ${data.email} is already in use.`);
+
+  await prisma.$transaction(async (tx) => {
+    // Update User
+    await tx.user.update({
+      where: { id: profile.userId },
+      data: {
+        username: data.username,
+        email: data.email,
+      },
+    });
+
+    // Update Profile
+    await tx.teacherProfile.update({
+      where: { id: teacherId },
+      data: {
+        name: data.name,
+        phone: data.phone,
+      },
+    });
+
+    // Update Subject Assignment
+    await tx.subject.updateMany({
+      where: { teacherId },
+      data: { teacherId: null },
+    });
+
+    if (data.subjectIds && data.subjectIds.length > 0) {
+      await tx.subject.updateMany({
+        where: { id: { in: data.subjectIds } },
+        data: { teacherId },
+      });
+    }
+  });
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/users");
+}
+
+// ─── Delete Teacher ───────────────────────────────────────────
+export async function deleteTeacher(teacherId: number) {
+  const profile = await prisma.teacherProfile.findUnique({
+    where: { id: teacherId },
+    select: { userId: true },
+  });
+
+  if (profile) {
+    await prisma.$transaction(async (tx) => {
+      // Disconnect teacher from any subjects
+      await tx.subject.updateMany({
+        where: { teacherId },
+        data: { teacherId: null },
+      });
+
+      // Delete user (cascades to TeacherProfile)
+      await tx.user.delete({
+        where: { id: profile.userId },
+      });
+    });
+  }
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/users");
+}
+
+// ─── Update Warden ────────────────────────────────────────────
+export async function updateWarden(
+  wardenId: number,
+  data: {
+    name: string;
+    username: string;
+    email: string;
+    phone: string | null;
+    hostelIds: number[];
+  }
+) {
+  const profile = await prisma.wardenProfile.findUnique({
+    where: { id: wardenId },
+    select: { userId: true },
+  });
+  if (!profile) throw new Error("Warden not found.");
+
+  // Check username uniqueness
+  const duplicateUser = await prisma.user.findFirst({
+    where: {
+      username: data.username,
+      NOT: { id: profile.userId },
+    },
+  });
+  if (duplicateUser) throw new Error(`Username ${data.username} is already taken.`);
+
+  // Check email uniqueness
+  const duplicateEmail = await prisma.user.findFirst({
+    where: {
+      email: data.email,
+      NOT: { id: profile.userId },
+    },
+  });
+  if (duplicateEmail) throw new Error(`Email ${data.email} is already in use.`);
+
+  await prisma.$transaction(async (tx) => {
+    // Update User
+    await tx.user.update({
+      where: { id: profile.userId },
+      data: {
+        username: data.username,
+        email: data.email,
+      },
+    });
+
+    // Update Profile
+    await tx.wardenProfile.update({
+      where: { id: wardenId },
+      data: {
+        name: data.name,
+        phone: data.phone,
+      },
+    });
+
+    // Update Hostel Assignment
+    await tx.hostel.updateMany({
+      where: { wardenId },
+      data: { wardenId: null },
+    });
+
+    if (data.hostelIds && data.hostelIds.length > 0) {
+      await tx.hostel.updateMany({
+        where: { id: { in: data.hostelIds } },
+        data: { wardenId },
+      });
+    }
+  });
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/users");
+}
+
+// ─── Delete Warden ────────────────────────────────────────────
+export async function deleteWarden(wardenId: number) {
+  const profile = await prisma.wardenProfile.findUnique({
+    where: { id: wardenId },
+    select: { userId: true },
+  });
+
+  if (profile) {
+    await prisma.$transaction(async (tx) => {
+      // Disconnect warden from any hostels
+      await tx.hostel.updateMany({
+        where: { wardenId },
+        data: { wardenId: null },
+      });
+
+      // Delete user (cascades to WardenProfile)
+      await tx.user.delete({
+        where: { id: profile.userId },
+      });
+    });
+  }
+
+  revalidatePath("/dashboard/admin");
+  revalidatePath("/dashboard/admin/users");
+}
+
+// ─── Update Subject ───────────────────────────────────────────
+export async function updateSubject(
+  subjectId: number,
+  data: {
+    name: string;
+    teacherId: number | null;
+  }
+) {
+  await prisma.subject.update({
+    where: { id: subjectId },
+    data: {
+      name: data.name,
+      teacherId: data.teacherId,
+    },
+  });
+
+  revalidatePath("/dashboard/admin/subjects");
+  revalidatePath("/dashboard/admin");
+}
+
+// ─── Delete Subject ───────────────────────────────────────────
+export async function deleteSubject(subjectId: number) {
+  await prisma.$transaction(async (tx) => {
+    // Delete all StudentSubject links
+    await tx.studentSubject.deleteMany({
+      where: { subjectId },
+    });
+
+    // Delete Subject
+    await tx.subject.delete({
+      where: { id: subjectId },
+    });
+  });
+
+  revalidatePath("/dashboard/admin/subjects");
+  revalidatePath("/dashboard/admin");
+}
+
+// ─── Update Hostel ────────────────────────────────────────────
+export async function updateHostel(
+  hostelId: number,
+  data: {
+    name: string;
+    wardenId: number | null;
+  }
+) {
+  await prisma.hostel.update({
+    where: { id: hostelId },
+    data: {
+      name: data.name,
+      wardenId: data.wardenId,
+    },
+  });
+
+  revalidatePath("/dashboard/admin/hostels");
+  revalidatePath("/dashboard/admin");
+}
+
+// ─── Delete Hostel ────────────────────────────────────────────
+export async function deleteHostel(hostelId: number) {
+  await prisma.$transaction(async (tx) => {
+    // Delete StudentHostel links
+    await tx.studentHostel.deleteMany({
+      where: { hostelId },
+    });
+
+    // Delete all rooms in this hostel
+    await tx.room.deleteMany({
+      where: { hostelId },
+    });
+
+    // Delete Hostel
+    await tx.hostel.delete({
+      where: { id: hostelId },
+    });
+  });
+
+  revalidatePath("/dashboard/admin/hostels");
+  revalidatePath("/dashboard/admin");
 }

@@ -12,7 +12,7 @@ export default async function TeacherDashboardPage() {
   const teacher = await prisma.teacherProfile.findUnique({
     where: { userId },
     include: {
-      subject: {
+      subjects: {
         include: {
           studentSubjects: {
             include: {
@@ -36,8 +36,9 @@ export default async function TeacherDashboardPage() {
     );
   }
 
-  const subject = teacher.subject;
-  const enrolledStudents = subject?.studentSubjects ?? [];
+  const subjects = teacher.subjects ?? [];
+  const subjectNames = subjects.map((s) => s.name).join(", ");
+  const enrolledStudents = subjects.flatMap((s) => s.studentSubjects ?? []);
 
   return (
     <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
@@ -49,13 +50,14 @@ export default async function TeacherDashboardPage() {
       </div>
 
       {/* Subject Card */}
+      {/* Subject Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <p className="text-sm text-zinc-600 font-medium mb-2">📚 Assigned Subject</p>
-          {subject ? (
+          <p className="text-sm text-zinc-600 font-medium mb-2">📚 Assigned Subject(s)</p>
+          {subjects.length > 0 ? (
             <>
-              <p className="text-2xl font-bold text-zinc-950">{subject.name}</p>
-              <p className="text-xs text-zinc-500 mt-1">Subject ID: #{subject.id}</p>
+              <p className="text-2xl font-bold text-zinc-950">{subjectNames}</p>
+              <p className="text-xs text-zinc-500 mt-1">Total managed: {subjects.length}</p>
             </>
           ) : (
             <p className="text-zinc-500 italic text-sm">No subject assigned yet. Contact the admin.</p>
@@ -65,15 +67,15 @@ export default async function TeacherDashboardPage() {
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-zinc-600 font-medium mb-2">👨‍🎓 Enrolled Students</p>
           <p className="text-2xl font-bold text-zinc-950">{enrolledStudents.length}</p>
-          <p className="text-xs text-zinc-500 mt-1">Students enrolled in your subject</p>
+          <p className="text-xs text-zinc-500 mt-1">Students enrolled in your subject(s)</p>
         </div>
       </div>
 
       {/* Students Table */}
-      {subject && (
+      {subjects.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-lg font-semibold text-zinc-950">Students in {subject.name}</h2>
+            <h2 className="text-lg font-semibold text-zinc-950">Students in {subjectNames}</h2>
             <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">
               {enrolledStudents.length}
             </span>
@@ -81,7 +83,7 @@ export default async function TeacherDashboardPage() {
 
           {enrolledStudents.length === 0 ? (
             <div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center shadow-sm">
-              <p className="text-zinc-500 text-sm">No students have enrolled in this subject yet.</p>
+              <p className="text-zinc-500 text-sm">No students have enrolled in these subjects yet.</p>
             </div>
           ) : (
             <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden shadow-sm">

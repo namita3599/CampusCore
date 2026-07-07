@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   // ── Teachers ───────────────────────────────────────────────────────
   if (!type || type === "teachers" || type === "all") {
     const teachers = await prisma.teacherProfile.findMany({
-      include: { user: { select: { username: true, email: true } }, subject: true },
+      include: { user: { select: { username: true, email: true } }, subjects: true },
       orderBy: { id: "asc" },
     });
 
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       Name: t.name,
       Username: t.user.username,
       Email: t.user.email ?? "",
-      "Assigned Subject": t.subject?.name ?? "Not Assigned",
+      "Assigned Subject": t.subjects.map((s) => s.name).join(", ") || "Not Assigned",
     }));
 
     const ws = XLSX.utils.json_to_sheet(teacherRows);
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
   // ── Wardens ────────────────────────────────────────────────────────
   if (!type || type === "wardens" || type === "all") {
     const wardens = await prisma.wardenProfile.findMany({
-      include: { user: { select: { username: true, email: true } }, hostel: true },
+      include: { user: { select: { username: true, email: true } }, hostels: true },
       orderBy: { id: "asc" },
     });
 
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
       Name: w.name,
       Username: w.user.username,
       Email: w.user.email ?? "",
-      "Assigned Hostel": w.hostel?.name ?? "Not Assigned",
+      "Assigned Hostel": w.hostels.map((h) => h.name).join(", ") || "Not Assigned",
     }));
 
     const ws = XLSX.utils.json_to_sheet(wardenRows);

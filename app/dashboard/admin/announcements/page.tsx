@@ -18,7 +18,7 @@ async function handleDelete(formData: FormData) {
     where: { id },
   });
   
-  revalidatePath("/dashboard");
+  revalidatePath("/dashboard", "layout");
 }
 
 export default async function AnnouncementsPage() {
