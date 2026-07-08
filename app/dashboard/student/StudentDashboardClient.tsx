@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ChangePasswordForm from "../components/ChangePasswordForm";
 
 type Subject = { id: number; name: string };
 type StudentProfile = {
@@ -20,9 +21,11 @@ type StudentProfile = {
 
 export default function StudentDashboardClient({
   profile,
+  userId,
 }: {
   profile: StudentProfile;
   allSubjects: Subject[];
+  userId: number;
 }) {
   const feesPaid = profile.tuitionPaid;
 
@@ -158,31 +161,35 @@ export default function StudentDashboardClient({
 
       {/* Main Grid: Profile & Enrolled Courses */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Profile Card */}
-        <div className="lg:col-span-1 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm space-y-4">
-          <h3 className="text-base font-bold text-zinc-950 pb-3 border-b border-zinc-100 flex items-center gap-2">
-            👤 Student Profile
-          </h3>
-          <div className="space-y-3 text-sm">
-            <div>
-              <span className="text-zinc-500 block text-xs">Roll Number</span>
-              <span className="font-semibold text-zinc-900">{profile.rollNumber ?? "N/A"}</span>
-            </div>
-            <div>
-              <span className="text-zinc-500 block text-xs">Phone Number</span>
-              <span className="font-semibold text-zinc-900">{profile.phone ?? "N/A"}</span>
-            </div>
-            <div>
-              <span className="text-zinc-500 block text-xs">Guardian Name</span>
-              <span className="font-semibold text-zinc-900">{profile.guardianName ?? "N/A"}</span>
-            </div>
-            <div>
-              <span className="text-zinc-500 block text-xs">Admission Year</span>
-              <span className="font-semibold text-zinc-900">{profile.yearOfAdmission ?? "N/A"}</span>
-            </div>
-            <div>
-              <span className="text-zinc-500 block text-xs">Blood Group</span>
-              <span className="font-semibold text-zinc-900">{profile.bloodGroup ?? "N/A"}</span>
+        {/* Profile Column */}
+        <div className="lg:col-span-1">
+          {/* Profile Card */}
+          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm space-y-4">
+            <h3 className="text-base font-bold text-zinc-950 pb-3 border-b border-zinc-100 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">👤 Student Profile</span>
+              <ChangePasswordForm userId={userId} />
+            </h3>
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-zinc-500 block text-xs">Roll Number</span>
+                <span className="font-semibold text-zinc-900">{profile.rollNumber ?? "N/A"}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-xs">Phone Number</span>
+                <span className="font-semibold text-zinc-900">{profile.phone ?? "N/A"}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-xs">Guardian Name</span>
+                <span className="font-semibold text-zinc-900">{profile.guardianName ?? "N/A"}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-xs">Admission Year</span>
+                <span className="font-semibold text-zinc-900">{profile.yearOfAdmission ?? "N/A"}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-xs">Blood Group</span>
+                <span className="font-semibold text-zinc-900">{profile.bloodGroup ?? "N/A"}</span>
+              </div>
             </div>
           </div>
         </div>

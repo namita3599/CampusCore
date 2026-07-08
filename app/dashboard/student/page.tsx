@@ -41,5 +41,5 @@ export default async function StudentDashboardPage() {
     );
   }
 
-  return <StudentDashboardClient profile={profile} allSubjects={allSubjects} />;
+  return <StudentDashboardClient profile={profile} allSubjects={allSubjects} userId={userId} />;
 }
