@@ -433,10 +433,22 @@ export async function updateStudent(
 export async function deleteStudent(studentId: number) {
   const profile = await prisma.studentProfile.findUnique({
     where: { id: studentId },
-    select: { userId: true },
+    select: { userId: true, profilePictureUrl: true },
   });
 
   if (profile) {
+    if (profile.profilePictureUrl) {
+      try {
+        const parts = profile.profilePictureUrl.split("/");
+        const filename = parts[parts.length - 1];
+        if (filename) {
+          const { supabase } = await import("@/lib/supabase");
+          await supabase.storage.from("profile-pictures").remove([filename]);
+        }
+      } catch (err) {
+        console.error("Failed to delete profile picture from Supabase:", err);
+      }
+    }
     await prisma.$transaction(async (tx) => {
       // Clear room bookings and holds by this student and reset status to AVAILABLE
       await tx.room.updateMany({
