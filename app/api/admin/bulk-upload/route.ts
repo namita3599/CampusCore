@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
                   create: {
                     name,
                     phone,
-                    ...(subjectId ? { subject: { connect: { id: subjectId } } } : {}),
+                    ...(subjectId ? { subjects: { connect: [{ id: subjectId }] } } : {}),
                   },
                 },
               },
@@ -254,7 +254,7 @@ export async function POST(req: NextRequest) {
                   create: {
                     name,
                     phone,
-                    ...(hostelId ? { hostel: { connect: { id: hostelId } } } : {}),
+                    ...(hostelId ? { hostels: { connect: [{ id: hostelId }] } } : {}),
                   },
                 },
               },

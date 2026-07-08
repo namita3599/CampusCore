@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
 import SubjectsSearchWrapper from "../components/SubjectsSearchWrapper";
+import CourseRegistrationLockToggle from "../components/CourseRegistrationLockToggle";
 
 // ─── Actions inside Page (Server Action) ──────────────────────────────────────
 async function handleCreateSubject(formData: FormData) {
@@ -50,7 +51,7 @@ export default async function AdminSubjectsPage() {
   const session = await getServerSession(authOptions);
   if (session?.user?.role !== "ADMIN") redirect("/login");
 
-  const [subjects, teachers] = await Promise.all([
+  const [subjects, teachers, settings] = await Promise.all([
     prisma.subject.findMany({
       include: {
         teacher: true,
@@ -65,7 +66,13 @@ export default async function AdminSubjectsPage() {
     prisma.teacherProfile.findMany({
       orderBy: { name: "asc" },
     }),
+    prisma.systemSettings.findUnique({
+      where: { id: 1 },
+    }),
   ]);
+
+  const isLocked = settings?.courseRegistrationLocked ?? false;
+  const isTuitionLocked = settings?.tuitionPaymentLocked ?? false;
 
   return (
     <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
@@ -87,6 +94,12 @@ export default async function AdminSubjectsPage() {
           Back to Admin Dashboard
         </Link>
       </div>
+
+      {/* Lock Control */}
+      <CourseRegistrationLockToggle
+        initialLocked={isLocked}
+        initialTuitionLocked={isTuitionLocked}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Create Subject Card */}

@@ -149,7 +149,7 @@ export async function createTeacher(formData: FormData) {
           create: {
             name,
             phone,
-            ...(subjectId ? { subject: { connect: { id: parseInt(subjectId) } } } : {}),
+            ...(subjectId ? { subjects: { connect: [{ id: parseInt(subjectId) }] } } : {}),
           },
         },
       },
@@ -231,7 +231,7 @@ export async function createWarden(formData: FormData) {
           create: {
             name,
             phone,
-            ...(hostelId ? { hostel: { connect: { id: parseInt(hostelId) } } } : {}),
+            ...(hostelId ? { hostels: { connect: [{ id: parseInt(hostelId) }] } } : {}),
           },
         },
       },
@@ -736,3 +736,31 @@ export async function deleteHostel(hostelId: number) {
   revalidatePath("/dashboard/admin/hostels");
   revalidatePath("/dashboard/admin");
 }
+
+// ─── System Settings: Course Registration Lock ───────────────
+export async function getCourseRegistrationLocked(): Promise<boolean> {
+  const settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
+  return settings?.courseRegistrationLocked ?? false;
+}
+
+export async function toggleCourseRegistrationLock(locked: boolean) {
+  await prisma.systemSettings.upsert({
+    where: { id: 1 },
+    update: { courseRegistrationLocked: locked },
+    create: { id: 1, courseRegistrationLocked: locked },
+  });
+  revalidatePath("/dashboard/admin/subjects");
+  revalidatePath("/dashboard/student/register");
+}
+
+export async function toggleTuitionPaymentLock(locked: boolean) {
+  await prisma.systemSettings.upsert({
+    where: { id: 1 },
+    update: { tuitionPaymentLocked: locked },
+    create: { id: 1, tuitionPaymentLocked: locked },
+  });
+  revalidatePath("/dashboard/admin/subjects");
+  revalidatePath("/dashboard/student/fees");
+}
+
+

@@ -13,8 +13,16 @@ export async function changePasswordForcefully(
     throw new Error("Both current password and new password are required.");
   }
 
-  if (newPass.length < 8) {
-    throw new Error("New password must be at least 8 characters long.");
+  const hasMinLength = newPass.length >= 8;
+  const hasUppercase = /[A-Z]/.test(newPass);
+  const hasLowercase = /[a-z]/.test(newPass);
+  const hasDigit = /\d/.test(newPass);
+  const hasSpecial = /[^A-Za-z\d]/.test(newPass);
+
+  if (!hasMinLength || !hasUppercase || !hasLowercase || !hasDigit || !hasSpecial) {
+    throw new Error(
+      "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+    );
   }
 
   const user = await prisma.user.findUnique({

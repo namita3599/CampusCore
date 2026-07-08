@@ -19,6 +19,15 @@ function createPrismaClient() {
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+const client = globalForPrisma.prisma ?? createPrismaClient();
+
+// Self-healing check: if the schema changed but the dev server is using a cached instance
+// that doesn't have the new systemSettings model yet, force recreate it.
+export const prisma = (() => {
+  if (client && !("systemSettings" in client)) {
+    return createPrismaClient();
+  }
+  return client;
+})();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

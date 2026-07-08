@@ -118,3 +118,9 @@ model Announcement {
   content   String
   createdAt DateTime @default(now())
 }
+
+model SystemSettings {
+  id                         Int     @id @default(1)
+  courseRegistrationLocked   Boolean @default(false)
+  tuitionPaymentLocked       Boolean @default(false)
+}

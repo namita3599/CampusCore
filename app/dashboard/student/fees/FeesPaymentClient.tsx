@@ -8,12 +8,14 @@ interface Props {
   profileId: number;
   initialTuitionPaid: boolean;
   initialHostelPaid: boolean;
+  isTuitionLocked: boolean;
 }
 
 export default function FeesPaymentClient({
   profileId,
   initialTuitionPaid,
   initialHostelPaid,
+  isTuitionLocked,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [tuitionPaid, setTuitionPaid] = useState(initialTuitionPaid);
@@ -26,6 +28,10 @@ export default function FeesPaymentClient({
   };
 
   const handlePayTuition = () => {
+    if (isTuitionLocked) {
+      showMsg("error", "Tuition fee payments have been locked by the administrator.");
+      return;
+    }
     startTransition(async () => {
       try {
         await payTuition(profileId);
@@ -75,6 +81,10 @@ export default function FeesPaymentClient({
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
                   ✓ Paid
                 </span>
+              ) : isTuitionLocked ? (
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-semibold flex items-center gap-1">
+                  🔒 Locked
+                </span>
               ) : (
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
                   ⏳ Outstanding
@@ -87,20 +97,27 @@ export default function FeesPaymentClient({
               <p className="text-3xl font-extrabold text-zinc-950 mt-1">₹45,000</p>
               <p className="text-xs text-zinc-400 mt-1.5">Per semester — Academic Year 2024–25</p>
             </div>
+            {isTuitionLocked && !tuitionPaid && (
+              <p className="text-xs text-rose-600 font-medium bg-rose-50 border border-rose-200 p-2.5 rounded-lg">
+                ⚠️ Tuition fee payments have been temporarily disabled/stopped by the administrator. Contact administration.
+              </p>
+            )}
             <p className="text-xs text-zinc-500">Includes core academic facilities, examinations, and laboratory fees.</p>
           </div>
 
           <Button
             onClick={handlePayTuition}
-            disabled={isPending || tuitionPaid}
+            disabled={isPending || tuitionPaid || isTuitionLocked}
             className={`w-full rounded-xl py-3 ${
               tuitionPaid
+                ? "bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed hover:bg-zinc-100"
+                : isTuitionLocked
                 ? "bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed hover:bg-zinc-100"
                 : "bg-zinc-900 text-white hover:bg-zinc-800"
             }`}
             suppressHydrationWarning
           >
-            {tuitionPaid ? "Tuition Fees Settled" : "Pay Tuition Fee"}
+            {tuitionPaid ? "Tuition Fees Settled" : isTuitionLocked ? "Tuition Payments Locked" : "Pay Tuition Fee"}
           </Button>
         </div>
 

@@ -6,6 +6,21 @@ import { revalidatePath } from "next/cache";
 export async function registerSubjects(studentId: number, subjectIds: number[]) {
   if (subjectIds.length === 0) throw new Error("Select at least one subject.");
 
+  // Guard: tuition must be paid before course registration
+  const profile = await prisma.studentProfile.findUnique({
+    where: { id: studentId },
+    select: { tuitionPaid: true },
+  });
+  if (!profile?.tuitionPaid) {
+    throw new Error("You must pay your tuition fee before registering for courses.");
+  }
+
+  // Guard: admin course registration lock
+  const settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
+  if (settings?.courseRegistrationLocked) {
+    throw new Error("Course registration has been locked by the admin. Changes are no longer allowed.");
+  }
+
   await prisma.$transaction([
     prisma.studentSubject.deleteMany({ where: { studentId } }),
     prisma.studentSubject.createMany({
@@ -21,7 +36,14 @@ export async function registerSubjects(studentId: number, subjectIds: number[]) 
   revalidatePath("/dashboard/student");
 }
 
+
 export async function payTuition(studentId: number) {
+  // Guard: admin tuition payment lock
+  const settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
+  if (settings?.tuitionPaymentLocked) {
+    throw new Error("Tuition fee payments have been temporarily disabled/stopped by the administrator.");
+  }
+
   await prisma.studentProfile.update({
     where: { id: studentId },
     data: { tuitionPaid: true },

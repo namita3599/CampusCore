@@ -11,15 +11,22 @@ export default async function FeesPaymentPage() {
 
   const userId = parseInt(session.user.id);
 
-  const profile = await prisma.studentProfile.findUnique({
-    where: { userId },
-    select: {
-      id: true,
-      name: true,
-      tuitionPaid: true,
-      hostelPaid: true,
-    },
-  });
+  const [profile, settings] = await Promise.all([
+    prisma.studentProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        tuitionPaid: true,
+        hostelPaid: true,
+      },
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: 1 },
+    }),
+  ]);
+
+  const isTuitionLocked = settings?.tuitionPaymentLocked ?? false;
 
   if (!profile) {
     return (
@@ -56,6 +63,7 @@ export default async function FeesPaymentPage() {
         profileId={profile.id}
         initialTuitionPaid={profile.tuitionPaid}
         initialHostelPaid={profile.hostelPaid}
+        isTuitionLocked={isTuitionLocked}
       />
     </div>
   );

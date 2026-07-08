@@ -29,8 +29,16 @@ export default function ForcePasswordChangeModal({ userId, username }: Props) {
       return;
     }
 
-    if (newPass.length < 8) {
-      setErrorMsg("New password must be at least 8 characters long.");
+    const hasMinLength = newPass.length >= 8;
+    const hasUppercase = /[A-Z]/.test(newPass);
+    const hasLowercase = /[a-z]/.test(newPass);
+    const hasDigit = /\d/.test(newPass);
+    const hasSpecial = /[^A-Za-z\d]/.test(newPass);
+
+    if (!hasMinLength || !hasUppercase || !hasLowercase || !hasDigit || !hasSpecial) {
+      setErrorMsg(
+        "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+      );
       return;
     }
 
