@@ -33,7 +33,15 @@ export default async function DashboardLayout({
     );
   }
 
+  const userRole = dbUser?.role;
+
   const rawAnnouncements = await prisma.announcement.findMany({
+    where: userRole === "ADMIN" ? {} : {
+      OR: [
+        { targetRole: "ALL" },
+        { targetRole: userRole },
+      ],
+    },
     orderBy: { createdAt: "desc" },
     take: 5,
   });
@@ -45,7 +53,7 @@ export default async function DashboardLayout({
     createdAt: a.createdAt.toISOString(),
   }));
 
-  const latestAnnouncement = announcements[0] ?? null;
+  const latestAnnouncement = userRole === "ADMIN" ? null : (announcements[0] ?? null);
 
   return (
     <div className="flex h-screen bg-zinc-50 overflow-hidden text-zinc-950">

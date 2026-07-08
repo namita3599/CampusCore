@@ -55,7 +55,7 @@ export default async function AnnouncementsPage() {
             <CardHeader>
               <CardTitle className="text-zinc-950 dark:text-zinc-50">New Broadcast</CardTitle>
               <CardDescription className="text-zinc-500">
-                Publish a new announcement. It will trigger a toast notification for all users.
+                Publish a new announcement. It will show in targeted users notices.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -74,6 +74,23 @@ export default async function AnnouncementsPage() {
                   />
                 </div>
                 
+                <div className="space-y-2">
+                  <label htmlFor="targetRole" className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                    Intended For
+                  </label>
+                  <select
+                    id="targetRole"
+                    name="targetRole"
+                    required
+                    className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-950 dark:text-zinc-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all"
+                  >
+                    <option value="ALL">Everyone</option>
+                    <option value="STUDENT">Students</option>
+                    <option value="TEACHER">Teachers</option>
+                    <option value="WARDEN">Wardens</option>
+                  </select>
+                </div>
+
                 <div className="space-y-2">
                   <label htmlFor="content" className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                     Message Content
@@ -123,8 +140,27 @@ export default async function AnnouncementsPage() {
             announcements.map((ann) => (
               <Card key={ann.id} className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base font-bold text-zinc-950 dark:text-zinc-50">{ann.title}</CardTitle>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-base font-bold text-zinc-950 dark:text-zinc-50">{ann.title}</CardTitle>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        ann.targetRole === "ALL"
+                          ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                          : ann.targetRole === "STUDENT"
+                          ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                          : ann.targetRole === "TEACHER"
+                          ? "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                          : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                      }`}>
+                        {ann.targetRole === "ALL"
+                          ? "Everyone"
+                          : ann.targetRole === "STUDENT"
+                          ? "Students"
+                          : ann.targetRole === "TEACHER"
+                          ? "Teachers"
+                          : "Wardens"}
+                      </span>
+                    </div>
                     <p className="text-xs text-zinc-400 font-medium">
                       {new Date(ann.createdAt).toLocaleDateString("en-US", {
                         weekday: "short",
@@ -147,7 +183,7 @@ export default async function AnnouncementsPage() {
                   </form>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-350 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-sm text-zinc-650 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">
                     {ann.content}
                   </p>
                 </CardContent>

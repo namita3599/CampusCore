@@ -44,6 +44,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as any).role;
         token.username = (user as any).username;
+        token.exp = Math.floor(Date.now() / 1000) + 86400;
       }
       return token;
     },
@@ -52,6 +53,9 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as Role;
         session.user.username = token.username as string;
+        if (token.exp) {
+          session.expires = new Date((token.exp as number) * 1000).toISOString();
+        }
       }
       return session;
     },
@@ -61,6 +65,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
+    maxAge: 86400,
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

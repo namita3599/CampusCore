@@ -44,17 +44,57 @@ export async function payTuition(studentId: number) {
     throw new Error("Tuition fee payments have been temporarily disabled/stopped by the administrator.");
   }
 
-  await prisma.studentProfile.update({
-    where: { id: studentId },
-    data: { tuitionPaid: true },
+  const unpaidRecord = await prisma.feeRecord.findFirst({
+    where: {
+      studentId,
+      type: "TUITION",
+      status: "UNPAID",
+    },
+    orderBy: { createdAt: "desc" },
   });
+
+  await prisma.$transaction([
+    ...(unpaidRecord
+      ? [
+          prisma.feeRecord.update({
+            where: { id: unpaidRecord.id },
+            data: { status: "PAID", paidAt: new Date() },
+          }),
+        ]
+      : []),
+    prisma.studentProfile.update({
+      where: { id: studentId },
+      data: { tuitionPaid: true },
+    }),
+  ]);
+
   revalidatePath("/dashboard/student");
 }
 
 export async function payHostel(studentId: number) {
-  await prisma.studentProfile.update({
-    where: { id: studentId },
-    data: { hostelPaid: true },
+  const unpaidRecord = await prisma.feeRecord.findFirst({
+    where: {
+      studentId,
+      type: "HOSTEL",
+      status: "UNPAID",
+    },
+    orderBy: { createdAt: "desc" },
   });
+
+  await prisma.$transaction([
+    ...(unpaidRecord
+      ? [
+          prisma.feeRecord.update({
+            where: { id: unpaidRecord.id },
+            data: { status: "PAID", paidAt: new Date() },
+          }),
+        ]
+      : []),
+    prisma.studentProfile.update({
+      where: { id: studentId },
+      data: { hostelPaid: true },
+    }),
+  ]);
+
   revalidatePath("/dashboard/student");
 }

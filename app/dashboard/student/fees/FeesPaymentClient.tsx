@@ -9,6 +9,10 @@ interface Props {
   initialTuitionPaid: boolean;
   initialHostelPaid: boolean;
   isTuitionLocked: boolean;
+  tuitionAmount: number;
+  hostelAmount: number;
+  tuitionTerm: string;
+  hostelTerm: string;
 }
 
 export default function FeesPaymentClient({
@@ -16,6 +20,10 @@ export default function FeesPaymentClient({
   initialTuitionPaid,
   initialHostelPaid,
   isTuitionLocked,
+  tuitionAmount,
+  hostelAmount,
+  tuitionTerm,
+  hostelTerm,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [tuitionPaid, setTuitionPaid] = useState(initialTuitionPaid);
@@ -94,8 +102,8 @@ export default function FeesPaymentClient({
 
             <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-4">
               <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Amount Due</p>
-              <p className="text-3xl font-extrabold text-zinc-950 mt-1">₹45,000</p>
-              <p className="text-xs text-zinc-400 mt-1.5">Per semester — Academic Year 2024–25</p>
+              <p className="text-3xl font-extrabold text-zinc-950 mt-1">₹{tuitionAmount.toLocaleString("en-IN")}</p>
+              <p className="text-xs text-zinc-400 mt-1.5">{tuitionTerm}</p>
             </div>
             {isTuitionLocked && !tuitionPaid && (
               <p className="text-xs text-rose-600 font-medium bg-rose-50 border border-rose-200 p-2.5 rounded-lg">
@@ -142,8 +150,8 @@ export default function FeesPaymentClient({
 
             <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-4">
               <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Amount Due</p>
-              <p className="text-3xl font-extrabold text-zinc-950 mt-1">₹25,000</p>
-              <p className="text-xs text-zinc-400 mt-1.5">Per semester — includes mess and utilities</p>
+              <p className="text-3xl font-extrabold text-zinc-950 mt-1">₹{hostelAmount.toLocaleString("en-IN")}</p>
+              <p className="text-xs text-zinc-400 mt-1.5">{hostelTerm}</p>
             </div>
             <p className="text-xs text-zinc-500">Covers hostel room allotment, daily breakfast/lunch/dinner, power, and water utilities.</p>
           </div>

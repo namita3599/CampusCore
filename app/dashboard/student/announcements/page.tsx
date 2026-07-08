@@ -7,5 +7,7 @@ export default async function StudentAnnouncementsPage() {
   const session = await getServerSession(authOptions);
   if (session?.user?.role !== "STUDENT") redirect("/login");
 
-  return <AnnouncementsView />;
+  const userId = parseInt(session.user.id);
+
+  return <AnnouncementsView userId={userId} userRole="STUDENT" />;
 }

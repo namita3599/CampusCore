@@ -11,7 +11,7 @@ export default async function FeesPaymentPage() {
 
   const userId = parseInt(session.user.id);
 
-  const [profile, settings] = await Promise.all([
+  const [profile, settings, latestTuition, latestHostel] = await Promise.all([
     prisma.studentProfile.findUnique({
       where: { userId },
       select: {
@@ -23,6 +23,14 @@ export default async function FeesPaymentPage() {
     }),
     prisma.systemSettings.findUnique({
       where: { id: 1 },
+    }),
+    prisma.feeRecord.findFirst({
+      where: { student: { userId }, type: "TUITION" },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.feeRecord.findFirst({
+      where: { student: { userId }, type: "HOSTEL" },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -37,6 +45,13 @@ export default async function FeesPaymentPage() {
       </div>
     );
   }
+
+  const tuitionPaid = latestTuition ? latestTuition.status === "PAID" : profile.tuitionPaid;
+  const hostelPaid = latestHostel ? latestHostel.status === "PAID" : profile.hostelPaid;
+  const tuitionAmount = latestTuition ? latestTuition.amount : 45000;
+  const hostelAmount = latestHostel ? latestHostel.amount : 25000;
+  const tuitionTerm = latestTuition ? latestTuition.term : "Academic Year 2024–25";
+  const hostelTerm = latestHostel ? latestHostel.term : "includes mess and utilities";
 
   return (
     <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
@@ -61,9 +76,13 @@ export default async function FeesPaymentPage() {
 
       <FeesPaymentClient
         profileId={profile.id}
-        initialTuitionPaid={profile.tuitionPaid}
-        initialHostelPaid={profile.hostelPaid}
+        initialTuitionPaid={tuitionPaid}
+        initialHostelPaid={hostelPaid}
         isTuitionLocked={isTuitionLocked}
+        tuitionAmount={tuitionAmount}
+        hostelAmount={hostelAmount}
+        tuitionTerm={tuitionTerm}
+        hostelTerm={hostelTerm}
       />
     </div>
   );

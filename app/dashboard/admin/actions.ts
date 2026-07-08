@@ -338,15 +338,20 @@ export async function assignStudentToHostel(formData: FormData) {
 export async function createAnnouncement(formData: FormData) {
   const title = formData.get("title") as string;
   const content = formData.get("content") as string;
+  const targetRole = (formData.get("targetRole") as string) || "ALL";
 
   if (!title || !content) {
     throw new Error("Title and content are required.");
   }
 
+  const validRoles = ["ALL", "STUDENT", "TEACHER", "WARDEN"];
+  const finalRole = validRoles.includes(targetRole) ? targetRole : "ALL";
+
   await prisma.announcement.create({
     data: {
       title,
       content,
+      targetRole: finalRole,
     },
   });
 
@@ -763,4 +768,63 @@ export async function toggleTuitionPaymentLock(locked: boolean) {
   revalidatePath("/dashboard/student/fees");
 }
 
+// ─── Fee Record Actions ───────────────────────────────────────────
+export async function markFeePaid(feeRecordId: number) {
+  await prisma.feeRecord.update({
+    where: { id: feeRecordId },
+    data: { status: "PAID", paidAt: new Date() },
+  });
+  revalidatePath("/dashboard/admin/fees");
+}
 
+export async function resetFeeUnpaid(feeRecordId: number) {
+  await prisma.feeRecord.update({
+    where: { id: feeRecordId },
+    data: { status: "UNPAID", paidAt: null },
+  });
+  revalidatePath("/dashboard/admin/fees");
+}
+
+export async function updateBatchFeeAmount(
+  admissionYear: number,
+  feeType: string,
+  amount: number,
+  term: string
+) {
+  await prisma.feeRecord.updateMany({
+    where: { admissionYear, type: feeType as any, term },
+    data: { amount },
+  });
+  revalidatePath("/dashboard/admin/fees");
+}
+
+export async function bulkResetFeesToUnpaid(
+  feeType: string,
+  term: string,
+  defaultAmount: number
+) {
+  const students = await prisma.studentProfile.findMany({
+    select: { id: true, yearOfAdmission: true },
+  });
+
+  await Promise.all(
+    students.map((s) =>
+      prisma.feeRecord.upsert({
+        where: {
+          studentId_type_term: { studentId: s.id, type: feeType as any, term },
+        },
+        update: { status: "UNPAID", paidAt: null },
+        create: {
+          studentId: s.id,
+          type: feeType as any,
+          status: "UNPAID",
+          amount: defaultAmount,
+          term,
+          admissionYear: s.yearOfAdmission ?? new Date().getFullYear(),
+        },
+      })
+    )
+  );
+
+  revalidatePath("/dashboard/admin/fees");
+}
