@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { payTuition, payHostel } from "../actions";
 import { Button } from "@/components/ui/button";
+import PaymentButton from "@/components/PaymentButton";
 
 interface Props {
   profileId: number;
@@ -13,6 +14,12 @@ interface Props {
   hostelAmount: number;
   tuitionTerm: string;
   hostelTerm: string;
+  userId: number;
+  studentName: string;
+  studentEmail?: string;
+  studentPhone?: string;
+  tuitionInvoiceId?: string;
+  hostelInvoiceId?: string;
 }
 
 export default function FeesPaymentClient({
@@ -24,6 +31,12 @@ export default function FeesPaymentClient({
   hostelAmount,
   tuitionTerm,
   hostelTerm,
+  userId,
+  studentName,
+  studentEmail,
+  studentPhone,
+  tuitionInvoiceId,
+  hostelInvoiceId,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [tuitionPaid, setTuitionPaid] = useState(initialTuitionPaid);
@@ -113,20 +126,25 @@ export default function FeesPaymentClient({
             <p className="text-xs text-zinc-500">Includes core academic facilities, examinations, and laboratory fees.</p>
           </div>
 
-          <Button
-            onClick={handlePayTuition}
-            disabled={isPending || tuitionPaid || isTuitionLocked}
-            className={`w-full rounded-xl py-3 ${
-              tuitionPaid
-                ? "bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed hover:bg-zinc-100"
-                : isTuitionLocked
-                ? "bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed hover:bg-zinc-100"
-                : "bg-zinc-900 text-white hover:bg-zinc-800"
-            }`}
-            suppressHydrationWarning
-          >
-            {tuitionPaid ? "Tuition Fees Settled" : isTuitionLocked ? "Tuition Payments Locked" : "Pay Tuition Fee"}
-          </Button>
+          {tuitionInvoiceId && !tuitionPaid && !isTuitionLocked ? (
+            <PaymentButton
+              invoiceId={tuitionInvoiceId}
+              amount={tuitionAmount}
+              userId={userId}
+              studentName={studentName}
+              studentEmail={studentEmail}
+              studentPhone={studentPhone}
+              className="w-full rounded-xl py-3"
+            />
+          ) : (
+            <Button
+              disabled={true}
+              className="w-full rounded-xl py-3 bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed hover:bg-zinc-100"
+              suppressHydrationWarning
+            >
+              {tuitionPaid ? "Tuition Fees Settled" : isTuitionLocked ? "Tuition Payments Locked" : "Invoice Not Generated"}
+            </Button>
+          )}
         </div>
 
         {/* Hostel Card */}
@@ -156,18 +174,25 @@ export default function FeesPaymentClient({
             <p className="text-xs text-zinc-500">Covers hostel room allotment, daily breakfast/lunch/dinner, power, and water utilities.</p>
           </div>
 
-          <Button
-            onClick={handlePayHostel}
-            disabled={isPending || hostelPaid}
-            className={`w-full rounded-xl py-3 ${
-              hostelPaid
-                ? "bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed hover:bg-zinc-100"
-                : "bg-zinc-900 text-white hover:bg-zinc-800"
-            }`}
-            suppressHydrationWarning
-          >
-            {hostelPaid ? "Hostel Fees Settled" : "Pay Hostel Fee"}
-          </Button>
+          {hostelInvoiceId && !hostelPaid ? (
+            <PaymentButton
+              invoiceId={hostelInvoiceId}
+              amount={hostelAmount}
+              userId={userId}
+              studentName={studentName}
+              studentEmail={studentEmail}
+              studentPhone={studentPhone}
+              className="w-full rounded-xl py-3"
+            />
+          ) : (
+            <Button
+              disabled={true}
+              className="w-full rounded-xl py-3 bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed hover:bg-zinc-100"
+              suppressHydrationWarning
+            >
+              {hostelPaid ? "Hostel Fees Settled" : "Invoice Not Generated"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

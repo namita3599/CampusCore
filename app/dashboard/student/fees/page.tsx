@@ -17,8 +17,14 @@ export default async function FeesPaymentPage() {
       select: {
         id: true,
         name: true,
+        phone: true,
         tuitionPaid: true,
         hostelPaid: true,
+        user: {
+          select: {
+            email: true,
+          },
+        },
       },
     }),
     prisma.systemSettings.findUnique({
@@ -53,6 +59,50 @@ export default async function FeesPaymentPage() {
   const tuitionTerm = latestTuition ? latestTuition.term : "Academic Year 2024–25";
   const hostelTerm = latestHostel ? latestHostel.term : "includes mess and utilities";
 
+  // Check or create Invoice records for any unpaid FeeRecord
+  let tuitionInvoiceId = "";
+  let hostelInvoiceId = "";
+
+  if (latestTuition && latestTuition.status === "UNPAID") {
+    let tInv = await prisma.invoice.findFirst({
+      where: {
+        studentId: profile.id,
+        feeRecordId: latestTuition.id,
+      },
+    });
+    if (!tInv) {
+      tInv = await prisma.invoice.create({
+        data: {
+          studentId: profile.id,
+          amount: tuitionAmount,
+          feeRecordId: latestTuition.id,
+          isPaid: false,
+        },
+      });
+    }
+    tuitionInvoiceId = tInv.id;
+  }
+
+  if (latestHostel && latestHostel.status === "UNPAID") {
+    let hInv = await prisma.invoice.findFirst({
+      where: {
+        studentId: profile.id,
+        feeRecordId: latestHostel.id,
+      },
+    });
+    if (!hInv) {
+      hInv = await prisma.invoice.create({
+        data: {
+          studentId: profile.id,
+          amount: hostelAmount,
+          feeRecordId: latestHostel.id,
+          isPaid: false,
+        },
+      });
+    }
+    hostelInvoiceId = hInv.id;
+  }
+
   return (
     <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
       {/* Header */}
@@ -62,7 +112,7 @@ export default async function FeesPaymentPage() {
           <h1 className="text-2xl font-bold text-zinc-950">Fee Payments</h1>
           <p className="text-zinc-500 text-sm mt-1">Review outstanding tuition or hostel dues and make payments.</p>
         </div>
-
+ 
         <Link
           href="/dashboard/student"
           className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50"
@@ -73,7 +123,7 @@ export default async function FeesPaymentPage() {
           Back to Dashboard
         </Link>
       </div>
-
+ 
       <FeesPaymentClient
         profileId={profile.id}
         initialTuitionPaid={tuitionPaid}
@@ -83,6 +133,12 @@ export default async function FeesPaymentPage() {
         hostelAmount={hostelAmount}
         tuitionTerm={tuitionTerm}
         hostelTerm={hostelTerm}
+        userId={userId}
+        studentName={profile.name}
+        studentEmail={profile.user?.email || undefined}
+        studentPhone={profile.phone || undefined}
+        tuitionInvoiceId={tuitionInvoiceId || undefined}
+        hostelInvoiceId={hostelInvoiceId || undefined}
       />
     </div>
   );

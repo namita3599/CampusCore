@@ -137,32 +137,35 @@ export default async function WardenDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {hostelStudents.map(({ student }, i) => (
-                        <tr key={student.id}>
-                          <td className="text-zinc-500 text-xs">{i + 1}</td>
-                          <td className="font-medium text-zinc-950">{student.name}</td>
-                          <td className="text-zinc-500 font-mono text-xs">{student.user.username}</td>
-                          <td>
-                            <span className="px-2 py-0.5 rounded-full text-xs bg-zinc-100 text-zinc-700 border border-zinc-200">
-                              {student.branch}
-                            </span>
-                          </td>
-                          <td>
-                            {student.hostelPaid ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">✓ Paid</span>
-                            ) : (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">⏳ Pending</span>
-                            )}
-                          </td>
-                          <td>
-                            {student.courseRegistered ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">✓ Registered</span>
-                            ) : (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">Not yet</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {hostelStudents.map((item, i) => {
+                        const { student } = item;
+                        return (
+                          <tr key={`${student.id}-${item.hostelId}`}>
+                            <td className="text-zinc-500 text-xs">{i + 1}</td>
+                            <td className="font-medium text-zinc-950">{student.name}</td>
+                            <td className="text-zinc-500 font-mono text-xs">{student.user.username}</td>
+                            <td>
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-zinc-100 text-zinc-700 border border-zinc-200">
+                                {student.branch}
+                              </span>
+                            </td>
+                            <td>
+                              {student.hostelPaid ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">✓ Paid</span>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">⏳ Pending</span>
+                              )}
+                            </td>
+                            <td>
+                              {student.courseRegistered ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">✓ Registered</span>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200">Not yet</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

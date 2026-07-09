@@ -307,13 +307,12 @@ export default function HostelSelectionClient({
                         return (
                           <div
                             key={room.id}
-                            className={`rounded-xl border p-4 flex flex-col justify-between items-center text-center gap-3 transition-all ${
-                              isAvailable
+                            className={`rounded-xl border p-4 flex flex-col justify-between items-center text-center gap-3 transition-all ${isAvailable
                                 ? "bg-white border-zinc-200 hover:border-zinc-300"
                                 : isHeld
-                                ? "bg-amber-50/30 border-amber-200"
-                                : "bg-rose-50/20 border-rose-150"
-                            }`}
+                                  ? "bg-amber-50/30 border-amber-200"
+                                  : "bg-rose-50/20 border-rose-150"
+                              }`}
                           >
                             <div>
                               <p className="text-sm font-bold text-zinc-900">{room.roomNumber}</p>

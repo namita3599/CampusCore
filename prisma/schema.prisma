@@ -37,6 +37,7 @@ model User {
   heldRooms           Room[]          @relation("RoomHeldByUser")
   bookedRoom          Room?           @relation("RoomBookedByUser")
   announcementReads   AnnouncementRead[]
+  transactions        Transaction[]
 }
 
 model StudentProfile {
@@ -57,6 +58,8 @@ model StudentProfile {
   studentSubjects   StudentSubject[]
   studentHostels    StudentHostel[]
   feeRecords        FeeRecord[]
+  invoices            Invoice[]
+  complaints          Complaint[]
 }
 
 model TeacherProfile {
@@ -83,6 +86,7 @@ model Subject {
   teacherId       Int?
   teacher         TeacherProfile?  @relation("TeacherSubject", fields: [teacherId], references: [id], onDelete: SetNull)
   studentSubjects StudentSubject[]
+  complaints      Complaint[]
 }
 
 model Hostel {
@@ -92,6 +96,7 @@ model Hostel {
   warden         WardenProfile?  @relation("WardenHostel", fields: [wardenId], references: [id], onDelete: SetNull)
   studentHostels StudentHostel[]
   rooms          Room[]
+  complaints     Complaint[]
 }
 
 model StudentSubject {
@@ -161,6 +166,50 @@ model FeeRecord {
   paidAt        DateTime?
   admissionYear Int
   createdAt     DateTime       @default(now())
+  invoice       Invoice?
 
   @@unique([studentId, type, term])
+}
+
+model Invoice {
+  id           String        @id @default(uuid())
+  studentId    Int
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount       Float
+  isPaid       Boolean       @default(false)
+  paidAt       DateTime?
+  feeRecordId  Int?          @unique
+  feeRecord    FeeRecord?    @relation(fields: [feeRecordId], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+}
+
+model Transaction {
+  id              String   @id @default(uuid())
+  invoiceId       String
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Float
+  status          String   @default("PENDING") // "PENDING", "SUCCESS", "FAILED"
+  razorpayOrderId String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Complaint {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String
+  category    String         // "COURSE" or "HOSTEL"
+  status      String         @default("PENDING") // "PENDING", "RESOLVED"
+  createdAt   DateTime       @default(now())
+  resolvedAt  DateTime?
+  resolution  String?        // Reply from Teacher or Warden
+  studentId   Int
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId   Int?
+  subject     Subject?       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  hostelId    Int?
+  hostel      Hostel?        @relation(fields: [hostelId], references: [id], onDelete: SetNull)
 }
