@@ -20,6 +20,7 @@ export default async function FeesPaymentPage() {
         phone: true,
         tuitionPaid: true,
         hostelPaid: true,
+        yearOfAdmission: true,
         user: {
           select: {
             email: true,
@@ -52,22 +53,51 @@ export default async function FeesPaymentPage() {
     );
   }
 
-  const tuitionPaid = latestTuition ? latestTuition.status === "PAID" : profile.tuitionPaid;
-  const hostelPaid = latestHostel ? latestHostel.status === "PAID" : profile.hostelPaid;
-  const tuitionAmount = latestTuition ? latestTuition.amount : 45000;
-  const hostelAmount = latestHostel ? latestHostel.amount : 25000;
-  const tuitionTerm = latestTuition ? latestTuition.term : "Academic Year 2024–25";
-  const hostelTerm = latestHostel ? latestHostel.term : "includes mess and utilities";
+  // Automatically generate FeeRecord for newly registered/created students
+  let currentTuition = latestTuition;
+  if (!currentTuition && !profile.tuitionPaid) {
+    currentTuition = await prisma.feeRecord.create({
+      data: {
+        studentId: profile.id,
+        type: "TUITION",
+        amount: 45000,
+        status: "UNPAID",
+        term: "Academic Year 2024–25",
+        admissionYear: profile.yearOfAdmission ?? new Date().getFullYear(),
+      },
+    });
+  }
+
+  let currentHostel = latestHostel;
+  if (!currentHostel && !profile.hostelPaid) {
+    currentHostel = await prisma.feeRecord.create({
+      data: {
+        studentId: profile.id,
+        type: "HOSTEL",
+        amount: 25000,
+        status: "UNPAID",
+        term: "includes mess and utilities",
+        admissionYear: profile.yearOfAdmission ?? new Date().getFullYear(),
+      },
+    });
+  }
+
+  const tuitionPaid = currentTuition ? currentTuition.status === "PAID" : profile.tuitionPaid;
+  const hostelPaid = currentHostel ? currentHostel.status === "PAID" : profile.hostelPaid;
+  const tuitionAmount = currentTuition ? currentTuition.amount : 45000;
+  const hostelAmount = currentHostel ? currentHostel.amount : 25000;
+  const tuitionTerm = currentTuition ? currentTuition.term : "Academic Year 2024–25";
+  const hostelTerm = currentHostel ? currentHostel.term : "includes mess and utilities";
 
   // Check or create Invoice records for any unpaid FeeRecord
   let tuitionInvoiceId = "";
   let hostelInvoiceId = "";
 
-  if (latestTuition && latestTuition.status === "UNPAID") {
+  if (currentTuition && currentTuition.status === "UNPAID") {
     let tInv = await prisma.invoice.findFirst({
       where: {
         studentId: profile.id,
-        feeRecordId: latestTuition.id,
+        feeRecordId: currentTuition.id,
       },
     });
     if (!tInv) {
@@ -75,7 +105,7 @@ export default async function FeesPaymentPage() {
         data: {
           studentId: profile.id,
           amount: tuitionAmount,
-          feeRecordId: latestTuition.id,
+          feeRecordId: currentTuition.id,
           isPaid: false,
         },
       });
@@ -83,11 +113,11 @@ export default async function FeesPaymentPage() {
     tuitionInvoiceId = tInv.id;
   }
 
-  if (latestHostel && latestHostel.status === "UNPAID") {
+  if (currentHostel && currentHostel.status === "UNPAID") {
     let hInv = await prisma.invoice.findFirst({
       where: {
         studentId: profile.id,
-        feeRecordId: latestHostel.id,
+        feeRecordId: currentHostel.id,
       },
     });
     if (!hInv) {
@@ -95,7 +125,7 @@ export default async function FeesPaymentPage() {
         data: {
           studentId: profile.id,
           amount: hostelAmount,
-          feeRecordId: latestHostel.id,
+          feeRecordId: currentHostel.id,
           isPaid: false,
         },
       });

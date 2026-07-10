@@ -55,11 +55,13 @@ model StudentProfile {
   tuitionPaid       Boolean          @default(false)
   hostelPaid        Boolean          @default(false)
   profilePictureUrl String?
+  faceEmbedding     Unsupported("vector(128)")?
   studentSubjects   StudentSubject[]
   studentHostels    StudentHostel[]
   feeRecords        FeeRecord[]
-  invoices            Invoice[]
-  complaints          Complaint[]
+  invoices          Invoice[]
+  complaints        Complaint[]
+  attendanceRecords AttendanceRecord[]
 }
 
 model TeacherProfile {
@@ -81,12 +83,13 @@ model WardenProfile {
 }
 
 model Subject {
-  id              Int              @id @default(autoincrement())
-  name            String           @unique
-  teacherId       Int?
-  teacher         TeacherProfile?  @relation("TeacherSubject", fields: [teacherId], references: [id], onDelete: SetNull)
-  studentSubjects StudentSubject[]
-  complaints      Complaint[]
+  id                Int                @id @default(autoincrement())
+  name              String             @unique
+  teacherId         Int?
+  teacher           TeacherProfile?    @relation("TeacherSubject", fields: [teacherId], references: [id], onDelete: SetNull)
+  studentSubjects   StudentSubject[]
+  complaints        Complaint[]
+  attendanceRecords AttendanceRecord[]
 }
 
 model Hostel {
@@ -212,4 +215,24 @@ model Complaint {
   subject     Subject?       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   hostelId    Int?
   hostel      Hostel?        @relation(fields: [hostelId], references: [id], onDelete: SetNull)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Attendance System
+// ─────────────────────────────────────────────────────────────────────────────
+model AttendanceRecord {
+  id        Int            @id @default(autoincrement())
+  studentId Int
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId Int
+  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  // @db.Date stores a pure date (no time) in PostgreSQL so the unique
+  // constraint below reliably prevents duplicate records for the same day.
+  date      DateTime       @db.Date
+  status    String         // "PRESENT" or "ABSENT"
+  createdAt DateTime       @default(now())
+
+  // One record per student per subject per day.
+  // upsert in the API route will update status if teacher resubmits.
+  @@unique([studentId, subjectId, date])
 }

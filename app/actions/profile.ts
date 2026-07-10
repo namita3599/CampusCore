@@ -56,6 +56,28 @@ export async function uploadProfilePicture(formData: FormData) {
       data: { profilePictureUrl: publicUrl },
     });
 
+    // Call Python microservice to process the profile photo and save the face embedding
+    try {
+      const pythonServiceUrl = process.env.NEXT_PUBLIC_FACIAL_API_URL || "http://localhost:8000";
+      const processRes = await fetch(`${pythonServiceUrl}/process-student-photo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          photoUrl: publicUrl,
+        }),
+      });
+
+      if (!processRes.ok) {
+        const errorData = await processRes.json().catch(() => ({})) as { detail?: string };
+        console.error("Failed to generate face embedding:", errorData.detail || "Unknown error");
+      } else {
+        console.log("Successfully generated face embedding for studentId:", studentId);
+      }
+    } catch (err) {
+      console.error("Error calling facial recognition service:", err);
+    }
+
     revalidatePath("/dashboard/student/profile");
     revalidatePath("/dashboard/student");
 
