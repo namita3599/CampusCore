@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CampusCore – Facial Recognition Attendance Service
+# requirements.txt
+#
+# Install with:  pip install -r requirements.txt
+#
+# NOTE: `face_recognition` depends on dlib, which requires CMake and a C++
+#       compiler.  On Ubuntu/Debian:  apt install cmake build-essential
+#       On Windows:  install Visual Studio Build Tools + CMake.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi==0.115.5            # ASGI web framework
+uvicorn[standard]==0.32.1   # Production ASGI server (includes uvloop + httptools)
+python-dotenv==1.0.1        # Loads .env file into os.environ at startup
+python-multipart==0.0.18    # Required by FastAPI to parse multipart/form-data (file uploads)
+
+# ── HTTP client (image download) ──────────────────────────────────────────────
+httpx==0.27.2               # Async-capable HTTP client; used to fetch student photos by URL
+
+# ── AI / Computer Vision ──────────────────────────────────────────────────────
+face_recognition==1.3.0     # High-level face detection + 128-D embedding (wraps dlib)
+numpy==1.26.4               # Numerical arrays; face_recognition returns numpy arrays
+
+# Pillow is NOT listed separately because face_recognition already pulls it as
+# a transitive dependency.  If your environment needs it explicitly:
+# Pillow==10.4.0
+
+# ── Database (PostgreSQL) ─────────────────────────────────────────────────────
+asyncpg==0.30.0             # Pure-Python async PostgreSQL driver; zero C extensions needed
+
+# ── Cache / Rate-limiting ─────────────────────────────────────────────────────
+redis[asyncio]==5.1.1       # Official Redis client; [asyncio] installs hiredis for speed
