@@ -319,6 +319,7 @@ export default function TeacherAttendance({ subjects }: TeacherAttendanceProps) 
                   <button
                     onClick={() => setSubjectDropdownOpen((v) => !v)}
                     className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-950 dark:text-zinc-50 hover:border-indigo-400 transition-colors cursor-pointer text-sm"
+                    suppressHydrationWarning
                   >
                     <span className={selectedSubject ? "font-medium" : "text-zinc-400"}>
                       {selectedSubject?.name ?? "Select a subject…"}

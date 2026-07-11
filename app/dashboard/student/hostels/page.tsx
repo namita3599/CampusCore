@@ -11,19 +11,15 @@ export default async function StudentHostelsPage() {
 
   const userId = parseInt(session.user.id);
 
-  // Check if student already has a booked room or an active hold
-  const [bookedRoom, heldRoom, hostels] = await Promise.all([
+  // Fetch the student's current booking (if any), hostel fee status, and all available hostels
+  const [bookedRoom, studentProfile, hostels] = await Promise.all([
     prisma.room.findFirst({
       where: { bookedByUserId: userId },
       include: { hostel: true },
     }),
-    prisma.room.findFirst({
-      where: {
-        heldByUserId: userId,
-        status: "HELD",
-        holdExpiresAt: { gt: new Date() },
-      },
-      include: { hostel: true },
+    prisma.studentProfile.findUnique({
+      where: { userId },
+      select: { hostelPaid: true },
     }),
     prisma.hostel.findMany({
       orderBy: { name: "asc" },
@@ -37,7 +33,7 @@ export default async function StudentHostelsPage() {
         <div>
           <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Student Portal</p>
           <h1 className="text-2xl font-bold text-zinc-950">Hostel Allocation</h1>
-          <p className="text-zinc-500 text-sm mt-1">Book your room in campus hostels using our secure lock-hold system.</p>
+          <p className="text-zinc-500 text-sm mt-1">Select an available room to book it instantly.</p>
         </div>
 
         <Link
@@ -54,9 +50,10 @@ export default async function StudentHostelsPage() {
       <HostelSelectionClient
         userId={userId}
         initialBookedRoom={bookedRoom}
-        initialHeldRoom={heldRoom}
+        hostelFeePaid={studentProfile?.hostelPaid ?? false}
         hostels={hostels}
       />
     </div>
   );
 }
+

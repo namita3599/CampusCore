@@ -109,6 +109,7 @@ export default async function WardenDashboardPage() {
             </div>
           </div>
 
+
           {/* Students Table */}
           {hostels.length > 0 && (
             <section>

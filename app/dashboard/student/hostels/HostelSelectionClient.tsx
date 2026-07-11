@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { getAvailableRooms, reserveRoom, confirmBooking, releaseHold } from "../hostelActions";
+import { getAvailableRooms, bookRoom } from "../hostelActions";
 
 interface Hostel {
   id: number;
@@ -13,8 +14,6 @@ interface Room {
   id: string;
   roomNumber: string;
   status: string;
-  heldByUserId?: number | null;
-  holdExpiresAt?: Date | null;
   bookedByUserId?: number | null;
   hostelId: number;
   hostel: {
@@ -26,25 +25,24 @@ interface Room {
 interface Props {
   userId: number;
   initialBookedRoom: Room | null;
-  initialHeldRoom: Room | null;
+  hostelFeePaid: boolean;
   hostels: Hostel[];
 }
 
 export default function HostelSelectionClient({
   userId,
   initialBookedRoom,
-  initialHeldRoom,
+  hostelFeePaid,
   hostels,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookedRoom, setBookedRoom] = useState<Room | null>(initialBookedRoom);
-  const [heldRoom, setHeldRoom] = useState<Room | null>(initialHeldRoom);
-  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [feeBlocked, setFeeBlocked] = useState(!hostelFeePaid);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // 1. Fetch live rooms layout map
+  // Fetch live rooms layout map
   const fetchRooms = async () => {
     try {
       const data = await getAvailableRooms();
@@ -58,112 +56,33 @@ export default function HostelSelectionClient({
     fetchRooms();
   }, []);
 
-  // 2. Countdown timer for HELD lock status
-  useEffect(() => {
-    if (!heldRoom || !heldRoom.holdExpiresAt) {
-      setTimeLeft(0);
-      return;
-    }
-
-    const calculateTimeLeft = () => {
-      const expiresAt = new Date(heldRoom.holdExpiresAt!).getTime();
-      const diff = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
-      return diff;
-    };
-
-    setTimeLeft(calculateTimeLeft());
-
-    const timer = setInterval(() => {
-      const remaining = calculateTimeLeft();
-      setTimeLeft(remaining);
-
-      if (remaining <= 0) {
-        clearInterval(timer);
-        setHeldRoom(null);
-        setErrorMessage("Your 10-minute hold has expired. The room has been released.");
-        fetchRooms();
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [heldRoom]);
-
-  // Formatting countdown helper MM:SS
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-  };
-
-  // 3. Stage 1: Lock room for 10 minutes
+  // Direct booking — no hold phase
   const handleSelectRoom = (roomId: string) => {
     setErrorMessage(null);
     setSuccessMessage(null);
 
     startTransition(async () => {
       try {
-        const result = await reserveRoom(roomId, userId);
-        if (result.success) {
-          const selected = rooms.find((r) => r.id === roomId);
-          if (selected) {
-            setHeldRoom({
-              ...selected,
-              status: "HELD",
-              heldByUserId: userId,
-              holdExpiresAt: result.holdExpiresAt,
-            });
-            setSuccessMessage(`Room ${selected.roomNumber} is now held for you. Complete your booking within 10 minutes!`);
-            fetchRooms();
-          }
-        }
-      } catch (err: any) {
-        setErrorMessage(err.message || "Unable to hold room.");
-        fetchRooms();
-      }
-    });
-  };
-
-  // 4. Stage 2: Finalize booking
-  const handleConfirmBooking = () => {
-    if (!heldRoom) return;
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    startTransition(async () => {
-      try {
-        const result = await confirmBooking(heldRoom.id, userId);
+        const result = await bookRoom(roomId, userId);
         if (result.success) {
           setBookedRoom(result.room as Room);
-          setHeldRoom(null);
-          setSuccessMessage(`Success! Room ${heldRoom.roomNumber} has been booked.`);
+          setSuccessMessage(`Room ${result.room.roomNumber} has been booked successfully!`);
+          fetchRooms();
+        } else if (result.message === "HOSTEL_FEE_UNPAID") {
+          // Server confirmed the fee is unpaid — show the fee gate
+          setFeeBlocked(true);
+        } else {
+          setErrorMessage(result.message || "Failed to book room.");
           fetchRooms();
         }
       } catch (err: any) {
-        setErrorMessage(err.message || "Failed to confirm booking.");
+        setErrorMessage(err.message || "Unable to book room.");
         fetchRooms();
       }
     });
   };
 
-  // 5. Stage 3: Release lock hold
-  const handleCancelHold = () => {
-    if (!heldRoom) return;
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    startTransition(async () => {
-      try {
-        await releaseHold(heldRoom.id, userId);
-        setHeldRoom(null);
-        setSuccessMessage("Hold cancelled successfully. You can select another room.");
-        fetchRooms();
-      } catch (err: any) {
-        setErrorMessage("Failed to cancel hold.");
-      }
-    });
-  };
-
-  // Group rooms by Hostel
+  // Group rooms by hostel
   const roomsByHostel = hostels.reduce((acc, h) => {
     acc[h.name] = rooms.filter((r) => r.hostelId === h.id);
     return acc;
@@ -171,7 +90,7 @@ export default function HostelSelectionClient({
 
   return (
     <div className="space-y-6">
-      {/* Dynamic Status Notifications */}
+      {/* Status Notifications */}
       {errorMessage && (
         <div className="px-4 py-3 rounded-xl border bg-rose-50 text-rose-700 border-rose-200 text-sm font-medium animate-fadeInUp">
           ⚠️ {errorMessage}
@@ -183,9 +102,8 @@ export default function HostelSelectionClient({
         </div>
       )}
 
-      {/* Booking State Display */}
       {bookedRoom ? (
-        /* State A: Room Booked Successfully */
+        /* Booked State */
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/10 p-6 shadow-sm space-y-4">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🎓</span>
@@ -197,7 +115,7 @@ export default function HostelSelectionClient({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 text-sm">
             <div className="bg-white border border-zinc-150 rounded-xl p-3 shadow-sm">
               <span className="text-zinc-500 block text-xs">Hostel</span>
-              <span className="font-bold text-zinc-900">{bookedRoom.hostel?.name || "Hostel A"}</span>
+              <span className="font-bold text-zinc-900">{bookedRoom.hostel?.name || "—"}</span>
             </div>
             <div className="bg-white border border-zinc-150 rounded-xl p-3 shadow-sm">
               <span className="text-zinc-500 block text-xs">Room Number</span>
@@ -213,51 +131,42 @@ export default function HostelSelectionClient({
             </div>
           </div>
         </div>
-      ) : heldRoom ? (
-        /* State B: Lock-Hold Stage */
-        <div className="rounded-2xl border border-amber-250 bg-amber-50/15 p-6 shadow-sm space-y-4 animate-fadeInUp">
-          <div className="flex items-center justify-between flex-wrap gap-4 pb-4 border-b border-amber-200/40">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl animate-pulse">⏰</span>
-              <div>
-                <h3 className="font-bold text-zinc-950">Room Lock Active</h3>
-                <p className="text-sm text-zinc-600">
-                  Room <span className="font-bold text-zinc-950">{heldRoom.roomNumber}</span> ({heldRoom.hostel?.name}) is temporarily reserved for you.
-                </p>
-              </div>
-            </div>
-            <div className="bg-zinc-950 text-white font-mono text-xl font-bold px-4 py-2 rounded-xl tracking-wider">
-              {formatTime(timeLeft)}
+      ) : feeBlocked ? (
+        /* Fee Gate — Hostel fee unpaid */
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/20 p-8 shadow-sm space-y-5">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl mt-0.5">🔒</span>
+            <div className="space-y-1">
+              <h3 className="font-bold text-zinc-950 text-lg">Hostel Fee Payment Required</h3>
+              <p className="text-sm text-zinc-600">
+                You must pay the hostel fee before you can select a room. Please complete the payment to unlock room allocation.
+              </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-3 pt-2">
-            <Button
-              onClick={handleConfirmBooking}
-              disabled={isPending || timeLeft <= 0}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-              suppressHydrationWarning
+          <div className="bg-white border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-xs text-zinc-500 uppercase font-semibold tracking-wider">Hostel Fee</p>
+              <p className="text-2xl font-extrabold text-zinc-950">₹25,000</p>
+              <p className="text-xs text-zinc-400 mt-0.5">Includes mess &amp; utilities for the academic year</p>
+            </div>
+            <Link
+              href="/dashboard/student/fees"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-zinc-950 text-white text-sm font-semibold hover:bg-zinc-800 transition-colors shadow-sm"
             >
-              Confirm Room Booking
-            </Button>
-            <Button
-              onClick={handleCancelHold}
-              disabled={isPending}
-              variant="outline"
-              className="border-zinc-200 text-zinc-700 hover:bg-zinc-50 rounded-xl"
-              suppressHydrationWarning
-            >
-              Cancel Hold &amp; Release
-            </Button>
+              💳 Pay Now
+            </Link>
           </div>
+          <p className="text-xs text-zinc-400">
+            After payment, return here to complete your room selection.
+          </p>
         </div>
       ) : (
-        /* State C: Normal selection map */
+        /* Room Selection Grid */
         <div className="bg-white rounded-2xl border border-zinc-200 p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between gap-4 pb-4 border-b border-zinc-150 flex-wrap">
             <div>
               <h2 className="text-lg font-semibold text-zinc-950">Select Room</h2>
-              <p className="text-xs text-zinc-500 mt-0.5">Click "Select" on an available room to place a temporary 10-minute hold.</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Click "Select" on an available room to book it instantly.</p>
             </div>
             <Button
               onClick={fetchRooms}
@@ -270,23 +179,19 @@ export default function HostelSelectionClient({
             </Button>
           </div>
 
-          {/* Color Key Guide */}
+          {/* Color Key */}
           <div className="flex gap-4 text-xs font-semibold text-zinc-600 flex-wrap">
             <div className="flex items-center gap-1.5">
               <span className="w-3.5 h-3.5 rounded-md bg-white border border-zinc-200 inline-block" />
               Available
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-amber-50 border border-amber-250 inline-block" />
-              Held (Reserved)
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-rose-50 border border-rose-250 inline-block" />
-              Occupied (Booked)
+              <span className="w-3.5 h-3.5 rounded-md bg-rose-50 border border-rose-200 inline-block" />
+              Occupied
             </div>
           </div>
 
-          {/* Hostel grids */}
+          {/* Hostel Grids */}
           <div className="space-y-8">
             {hostels.map((hostel) => {
               const hostelRooms = roomsByHostel[hostel.name] || [];
@@ -296,34 +201,27 @@ export default function HostelSelectionClient({
                     🏛️ {hostel.name}
                   </h3>
                   {hostelRooms.length === 0 ? (
-                    <p className="text-xs text-zinc-400 italic">No rooms loaded or setup in this hostel.</p>
+                    <p className="text-xs text-zinc-400 italic">No rooms loaded or set up in this hostel.</p>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
                       {hostelRooms.map((room) => {
                         const isAvailable = room.status === "AVAILABLE";
-                        const isHeld = room.status === "HELD";
-                        const isBooked = room.status === "BOOKED";
 
                         return (
                           <div
                             key={room.id}
-                            className={`rounded-xl border p-4 flex flex-col justify-between items-center text-center gap-3 transition-all ${isAvailable
+                            className={`rounded-xl border p-4 flex flex-col justify-between items-center text-center gap-3 transition-all ${
+                              isAvailable
                                 ? "bg-white border-zinc-200 hover:border-zinc-300"
-                                : isHeld
-                                  ? "bg-amber-50/30 border-amber-200"
-                                  : "bg-rose-50/20 border-rose-150"
-                              }`}
+                                : "bg-rose-50/20 border-rose-150"
+                            }`}
                           >
                             <div>
                               <p className="text-sm font-bold text-zinc-900">{room.roomNumber}</p>
                               <span className="text-[10px] mt-1 inline-block uppercase font-bold tracking-wider">
-                                {isAvailable && (
+                                {isAvailable ? (
                                   <span className="text-emerald-700">Available</span>
-                                )}
-                                {isHeld && (
-                                  <span className="text-amber-700">Held</span>
-                                )}
-                                {isBooked && (
+                                ) : (
                                   <span className="text-rose-700">Occupied</span>
                                 )}
                               </span>
@@ -337,7 +235,7 @@ export default function HostelSelectionClient({
                                 className="w-full text-xs font-semibold py-1 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg h-7"
                                 suppressHydrationWarning
                               >
-                                Select
+                                {isPending ? "Booking…" : "Select"}
                               </Button>
                             ) : (
                               <Button
