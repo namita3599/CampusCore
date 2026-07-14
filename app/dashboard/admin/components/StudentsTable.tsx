@@ -1,8 +1,9 @@
 "use client";
-
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Eye, Edit2, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { uploadProfilePicture } from "@/app/actions/profile";
 import { updateStudent, deleteStudent } from "../actions";
 import {
   Dialog,
@@ -39,6 +40,7 @@ type Student = {
   courseRegistered: boolean;
   tuitionPaid: boolean;
   hostelPaid: boolean;
+  profilePictureUrl?: string | null;
   user: { username: string; email: string | null; createdAt: Date };
   studentHostels: { hostel: { id: number; name: string } }[];
 };
@@ -89,12 +91,17 @@ export default function StudentsTable({
   students: Student[];
   hostels: Hostel[];
 }) {
+  const router = useRouter();
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [isPhotoPending, startPhotoTransition] = useTransition();
 
   const {
     register,
@@ -108,8 +115,50 @@ export default function StudentsTable({
     setIsViewOpen(true);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedStudent) return;
+
+    const MAX_FILE_SIZE_MB = 5;
+    const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      setPhotoError(`File is too large (${fileSizeMB} MB). Must be under ${MAX_FILE_SIZE_MB} MB.`);
+      e.target.value = "";
+      return;
+    }
+
+    setPhotoError(null);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("studentId", selectedStudent.id.toString());
+
+    startPhotoTransition(async () => {
+      try {
+        const res = await uploadProfilePicture(formData);
+        if (res.success && res.url) {
+          setPreviewUrl(res.url);
+          setSelectedStudent(prev => prev ? { ...prev, profilePictureUrl: res.url } : null);
+          router.refresh();
+        } else {
+          setPreviewUrl(selectedStudent.profilePictureUrl || null);
+          setPhotoError(res.error || "Failed to upload profile picture.");
+        }
+      } catch (err: any) {
+        setPreviewUrl(selectedStudent.profilePictureUrl || null);
+        setPhotoError(err.message || "An unexpected error occurred.");
+      }
+    });
+  };
+
   const openEdit = (student: Student) => {
     setSelectedStudent(student);
+    setPreviewUrl(student.profilePictureUrl || null);
+    setPhotoError(null);
     setErrorMsg(null);
     reset({
       name: student.name,
@@ -190,7 +239,22 @@ export default function StudentsTable({
               return (
                 <tr key={s.id}>
                   <td className="text-zinc-500 text-xs">{i + 1}</td>
-                  <td className="font-medium text-zinc-950">{s.name}</td>
+                  <td className="font-medium text-zinc-950">
+                    <div className="flex items-center gap-2.5">
+                      {s.profilePictureUrl ? (
+                        <img
+                          src={s.profilePictureUrl}
+                          alt={s.name}
+                          className="w-8 h-8 rounded-full object-cover border border-zinc-200 shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-xs font-bold text-zinc-500 uppercase shadow-sm">
+                          {s.name.substring(0, 2)}
+                        </div>
+                      )}
+                      <span>{s.name}</span>
+                    </div>
+                  </td>
                   <td className="text-zinc-500 font-mono text-xs">{s.user.username}</td>
                   <td>
                     <span className="px-2 py-0.5 rounded-full text-xs bg-zinc-100 text-zinc-700 border border-zinc-200">
@@ -264,6 +328,22 @@ export default function StudentsTable({
 
           {selectedStudent && (
             <div className="space-y-4 my-2 text-zinc-950">
+              <div className="flex flex-col items-center justify-center pb-4 border-b border-zinc-100">
+                {selectedStudent.profilePictureUrl ? (
+                  <img
+                    src={selectedStudent.profilePictureUrl}
+                    alt={selectedStudent.name}
+                    className="w-20 h-20 rounded-full object-cover border border-zinc-200 shadow-md"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-2xl font-bold text-zinc-500 uppercase shadow-md">
+                    {selectedStudent.name.substring(0, 2)}
+                  </div>
+                )}
+                <h3 className="text-sm font-bold text-zinc-900 mt-2">{selectedStudent.name}</h3>
+                <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{selectedStudent.rollNumber ?? "No Roll Number"}</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4 border-b border-zinc-100 pb-3">
                 <div>
                   <span className="block text-xs font-semibold uppercase tracking-wider text-zinc-500">Name</span>
@@ -369,6 +449,48 @@ export default function StudentsTable({
           )}
 
           <form onSubmit={handleSubmit(onEditSubmit)} className="space-y-4">
+            {/* Profile Picture Upload Section */}
+            <div className="flex flex-col items-center justify-center pb-4 border-b border-zinc-100">
+              <div className="relative group w-24 h-24 rounded-full overflow-hidden border border-zinc-200 bg-zinc-50 flex items-center justify-center">
+                {previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt={selectedStudent?.name || "Student"}
+                    className="w-full h-full object-cover transition-opacity duration-300"
+                  />
+                ) : (
+                  <span className="text-3xl text-zinc-400 font-bold uppercase">
+                    {selectedStudent?.name?.substring(0, 2) || "ST"}
+                  </span>
+                )}
+
+                {isPhotoPending && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <svg className="animate-spin h-6 w-6 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  </div>
+                )}
+
+                {/* Edit overlay */}
+                <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity duration-200">
+                  <span className="text-white text-xs font-medium">Change</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    disabled={isPhotoPending}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              <p className="text-[10px] text-zinc-400 mt-2">Click photo to update. Max 5MB.</p>
+              {photoError && (
+                <span className="text-xs text-red-500 mt-1">{photoError}</span>
+              )}
+            </div>
+
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
                 Full Name

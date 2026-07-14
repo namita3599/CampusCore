@@ -100,7 +100,7 @@ export default function AdminFeesClient({ feeRecords }: { feeRecords: FeeRecord[
   };
 
   return (
-    <div className="p-8 space-y-7 animate-fadeInUp text-zinc-950 dark:text-zinc-50 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-7 animate-fadeInUp text-zinc-950 dark:text-zinc-50 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
         <div>

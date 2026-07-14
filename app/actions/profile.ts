@@ -80,6 +80,7 @@ export async function uploadProfilePicture(formData: FormData) {
 
     revalidatePath("/dashboard/student/profile");
     revalidatePath("/dashboard/student");
+    revalidatePath("/dashboard/admin/users/students");
 
     return { success: true, url: publicUrl };
   } catch (error: any) {

@@ -16,6 +16,7 @@ type Student = {
   courseRegistered: boolean;
   tuitionPaid: boolean;
   hostelPaid: boolean;
+  profilePictureUrl?: string | null;
   user: { username: string; email: string | null; createdAt: Date };
   studentHostels: { hostel: { id: number; name: string } }[];
 };

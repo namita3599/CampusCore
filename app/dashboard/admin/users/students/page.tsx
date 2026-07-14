@@ -32,17 +32,19 @@ export default async function AllStudentsPage() {
           <ArrowLeft className="w-4 h-4" />
           Back to Manage Users
         </Link>
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
-            <GraduationCap className="w-6 h-6 text-white" />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+              <GraduationCap className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-zinc-950">All Students</h1>
+              <p className="text-sm text-zinc-500 mt-0.5">
+                View, search, filter, edit and delete student records
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-950">All Students</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">
-              View, search, filter, edit and delete student records
-            </p>
-          </div>
-          <div className="ml-auto">
+          <div className="sm:ml-auto">
             <span className="px-4 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold border border-blue-100">
               {students.length} total
             </span>

@@ -30,7 +30,7 @@ export default async function AnnouncementsPage() {
   });
 
   return (
-    <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950 dark:text-zinc-50">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 animate-fadeInUp text-zinc-950 dark:text-zinc-50">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-5">
         <div>

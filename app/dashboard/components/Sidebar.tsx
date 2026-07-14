@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
@@ -257,75 +258,165 @@ export default function Sidebar({ announcements = [] }: SidebarProps) {
   const pathname = usePathname();
   const role = session?.user?.role ?? "STUDENT";
   const items = navItems[role] ?? [];
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800">
-      {/* Logo */}
-      <div className="p-6 border-b border-zinc-200">
-        <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${roleColors[role]} flex items-center justify-center shadow-lg`}>
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-            </svg>
-          </div>
-          <div>
-            <p className="font-bold text-sm leading-tight text-zinc-950">CampusCore</p>
-            <p className="text-zinc-500 text-xs">Student Management</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Nav Items */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {items.map((item) => {
-          const isBaseRoute = ["/dashboard/admin", "/dashboard/student", "/dashboard/teacher", "/dashboard/warden"].includes(item.href);
-          const isActive = isBaseRoute
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive
-                  ? "bg-zinc-100 text-zinc-950 border border-zinc-200"
-                  : "text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100"
-                }`}
-            >
-              <span className={`${isActive ? "text-zinc-950" : "text-zinc-500 group-hover:text-zinc-900"} transition-colors`}>
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User Profile */}
-      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-3 mb-3">
-          <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${roleColors[role]} flex items-center justify-center text-white font-bold text-sm uppercase`}>
-            {session?.user?.username?.[0] ?? "U"}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-zinc-950 truncate">{session?.user?.username}</p>
-            <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium ${roleBadge[role]}`}>
-              {role}
-            </span>
-          </div>
-        </div>
-        <ThemeToggle className="w-full mb-2" />
+    <>
+      {/* Mobile Header Top-Bar (Visible only on mobile/tablet) */}
+      <div className="w-full h-16 flex items-center justify-between px-6 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 shrink-0 md:hidden">
+        <img src="/logo.png" alt="CampusCore Logo" className="h-12 w-auto object-contain dark:invert" />
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          id="signout-btn"
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200"
-          suppressHydrationWarning
+          onClick={() => setIsOpen(true)}
+          className="p-2 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100 rounded-lg transition-colors focus:outline-none"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
-          Sign Out
         </button>
       </div>
-    </aside>
+
+      {/* Desktop Sidebar (Hidden on mobile/tablet) */}
+      <aside className="hidden md:flex w-64 shrink-0 h-screen sticky top-0 flex-col bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800">
+        {/* Logo */}
+        <div className="p-6 border-b border-zinc-200 flex justify-center">
+          <img src="/logo.png" alt="CampusCore Logo" className="w-full h-auto max-h-12 object-contain dark:invert" />
+        </div>
+
+        {/* Nav Items */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {items.map((item) => {
+            const isBaseRoute = ["/dashboard/admin", "/dashboard/student", "/dashboard/teacher", "/dashboard/warden"].includes(item.href);
+            const isActive = isBaseRoute
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive
+                  ? "bg-zinc-100 text-zinc-950 border border-zinc-200"
+                  : "text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100"
+                  }`}
+              >
+                <span className={`${isActive ? "text-zinc-950" : "text-zinc-500 group-hover:text-zinc-900"} transition-colors`}>
+                  {item.icon}
+                </span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* User Profile */}
+        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-3 mb-3">
+            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${roleColors[role]} flex items-center justify-center text-white font-bold text-sm uppercase`}>
+              {session?.user?.username?.[0] ?? "U"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-zinc-950 truncate">{session?.user?.username}</p>
+              <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium ${roleBadge[role]}`}>
+                {role}
+              </span>
+            </div>
+          </div>
+          <ThemeToggle className="w-full mb-2" />
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            id="signout-btn"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200"
+            suppressHydrationWarning
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Drawer (visible only when toggled open) */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* Drawer Panel */}
+          <aside className="relative w-64 max-w-xs flex flex-col h-full bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 animate-slideIn">
+            {/* Logo & Close Button */}
+            <div className="p-6 border-b border-zinc-200 flex items-center justify-between gap-4">
+              <div className="flex-1 max-w-[160px]">
+                <img src="/logo.png" alt="CampusCore Logo" className="w-full h-auto object-contain dark:invert" />
+              </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors focus:outline-none"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Nav Items */}
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+              {items.map((item) => {
+                const isBaseRoute = ["/dashboard/admin", "/dashboard/student", "/dashboard/teacher", "/dashboard/warden"].includes(item.href);
+                const isActive = isBaseRoute
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive
+                      ? "bg-zinc-100 text-zinc-950 border border-zinc-200"
+                      : "text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100"
+                      }`}
+                  >
+                    <span className={`${isActive ? "text-zinc-950" : "text-zinc-500 group-hover:text-zinc-900"} transition-colors`}>
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* User Profile */}
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${roleColors[role]} flex items-center justify-center text-white font-bold text-sm uppercase`}>
+                  {session?.user?.username?.[0] ?? "U"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-zinc-950 truncate">{session?.user?.username}</p>
+                  <span className={`inline-block text-xs px-2 py-0.5 rounded-full border font-medium ${roleBadge[role]}`}>
+                    {role}
+                  </span>
+                </div>
+              </div>
+              <ThemeToggle className="w-full mb-2" />
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  signOut({ callbackUrl: "/login" });
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Sign Out
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

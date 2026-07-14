@@ -56,9 +56,9 @@ export default async function DashboardLayout({
   const latestAnnouncement = userRole === "ADMIN" ? null : (announcements[0] ?? null);
 
   return (
-    <div className="flex h-screen bg-zinc-50 overflow-hidden text-zinc-950">
+    <div className="flex flex-col md:flex-row h-screen bg-zinc-50 overflow-hidden text-zinc-950">
       <Sidebar announcements={announcements} />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 min-h-0 overflow-y-auto">
         <div className="min-h-full bg-zinc-50">
           {children}
         </div>

@@ -33,7 +33,7 @@ export default async function ManageResidentsPage() {
 
   if (warden.hostels.length === 0) {
     return (
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-8 space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
@@ -134,7 +134,7 @@ export default async function ManageResidentsPage() {
       : hostelIds.reduce((acc) => acc, 0); // available rooms are already computed
 
   return (
-    <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 animate-fadeInUp text-zinc-950">
       {/* ── Header ────────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>

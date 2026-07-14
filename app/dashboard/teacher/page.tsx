@@ -48,7 +48,7 @@ export default async function TeacherDashboardPage() {
   const enrolledStudents = subjects.flatMap((s) => s.studentSubjects ?? []);
 
   return (
-    <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 animate-fadeInUp text-zinc-950">
       {/* Header */}
       <div>
         <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Faculty Portal</p>

@@ -125,8 +125,23 @@ input[type="password"]::-webkit-textfield-decoration-container {
   50% { opacity: 0.6; }
 }
 
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .animate-fadeInUp {
   animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* Table styles */

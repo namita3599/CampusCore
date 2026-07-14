@@ -76,9 +76,9 @@ export default async function AdminUsersPage() {
   ] as const;
 
   return (
-    <div className="p-8 space-y-10 animate-fadeInUp text-zinc-950">
+    <div className="p-4 sm:p-8 space-y-8 sm:space-y-10 animate-fadeInUp text-zinc-950">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Admin</p>
           <h1 className="text-2xl font-bold text-zinc-950">Manage Users</h1>
@@ -88,7 +88,7 @@ export default async function AdminUsersPage() {
         </div>
         <Link
           href="/dashboard/admin"
-          className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50"
+          className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-900 shadow-sm transition-colors hover:bg-zinc-50 self-start sm:self-auto"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 19l-7-7 7-7" />

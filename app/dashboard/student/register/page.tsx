@@ -53,7 +53,7 @@ export default async function CourseRegistrationPage() {
   // ── Fee gate ──────────────────────────────────────────────────
   if (!profile.tuitionPaid) {
     return (
-      <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
+      <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 animate-fadeInUp text-zinc-950">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Student Portal</p>
@@ -86,7 +86,7 @@ export default async function CourseRegistrationPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 animate-fadeInUp text-zinc-950">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 animate-fadeInUp text-zinc-950">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Student Portal</p>

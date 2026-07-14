@@ -238,24 +238,15 @@ export default function LoginPage() {
       </div>
       <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full max-w-5xl gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-          
+
           {/* Left Branding Section */}
           <section className="flex flex-col justify-center">
             <div className="max-w-xl space-y-8">
-              
+
               {/* Logo and Headings */}
               <div className="space-y-4">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-200 bg-white shadow-sm">
-                  {/* Clean Academic Shield SVG */}
-                  <svg className="h-6 w-6 text-zinc-900" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  </svg>
-                </div>
-                
-                <h1 className="text-4xl font-bold tracking-tight text-zinc-950 sm:text-5xl">
-                  CampusCore
-                </h1>
-                
+                <img src="/logo.png" alt="CampusCore Logo" className="w-80 sm:w-96 h-auto object-contain dark:invert" />
+
                 <p className="max-w-xl text-lg leading-7 text-zinc-600">
                   Unifying campus administration, faculty workflows, and student housing in one secure digital workspace.
                 </p>
@@ -289,7 +280,7 @@ export default function LoginPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-8 pt-0">
-              
+
               {/* Error Alert */}
               {error ? (
                 <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">

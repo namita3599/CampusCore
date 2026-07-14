@@ -37,7 +37,7 @@ export default async function StudentHistoryPage() {
       : "—";
 
   return (
-    <div className="p-8 space-y-10 animate-fadeInUp text-zinc-950 dark:text-zinc-50 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-8 space-y-8 sm:space-y-10 animate-fadeInUp text-zinc-950 dark:text-zinc-50 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-5">
         <div>
