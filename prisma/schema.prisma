@@ -24,20 +24,27 @@ enum FeeStatus {
 }
 
 model User {
-  id                  Int             @id @default(autoincrement())
-  username            String          @unique
-  email               String?         @unique
-  hashedPassword      String
-  role                Role
-  forcePasswordChange Boolean         @default(true)
-  createdAt           DateTime        @default(now())
-  studentProfile      StudentProfile?
-  teacherProfile      TeacherProfile?
-  wardenProfile       WardenProfile?
-  heldRooms           Room[]          @relation("RoomHeldByUser")
-  bookedRoom          Room?           @relation("RoomBookedByUser")
-  announcementReads   AnnouncementRead[]
-  transactions        Transaction[]
+  id                    Int              @id @default(autoincrement())
+  username              String           @unique
+  email                 String?          @unique
+  hashedPassword        String
+  role                  Role
+  forcePasswordChange   Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  // ── OTP / Password-reset fields ──────────────────────────────
+  otpHash               String?
+  otpExpiresAt          DateTime?
+  failedOtpAttempts     Int              @default(0)
+  lastOtpRequestedAt    DateTime?
+  lastPasswordResetAt   DateTime?
+  // ─────────────────────────────────────────────────────────────
+  studentProfile        StudentProfile?
+  teacherProfile        TeacherProfile?
+  wardenProfile         WardenProfile?
+  heldRooms             Room[]           @relation("RoomHeldByUser")
+  bookedRoom            Room?            @relation("RoomBookedByUser")
+  announcementReads     AnnouncementRead[]
+  transactions          Transaction[]
 }
 
 model StudentProfile {
