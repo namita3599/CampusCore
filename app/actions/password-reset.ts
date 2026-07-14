@@ -121,7 +121,6 @@ export async function requestPasswordResetOtp(
  * the user's password and clears all OTP fields atomically.
  *
  * Guards:
- *  - 1-hour cooldown between successful password resets.
  *  - OTP must not be expired.
  *  - Max 3 failed attempts before OTP is invalidated.
  */
@@ -162,7 +161,6 @@ export async function verifyOtpAndResetPassword(
       otpHash: true,
       otpExpiresAt: true,
       failedOtpAttempts: true,
-      lastPasswordResetAt: true,
     },
   });
 
@@ -171,22 +169,7 @@ export async function verifyOtpAndResetPassword(
     return { success: false, message: "Invalid or expired OTP." };
   }
 
-  // Guard 1: 1-hour cooldown between successful resets
-  if (user.lastPasswordResetAt) {
-    const hoursSinceLastReset =
-      (Date.now() - user.lastPasswordResetAt.getTime()) / (1000 * 60 * 60);
-    if (hoursSinceLastReset < 1) {
-      const minutesRemaining = Math.ceil(
-        60 - (Date.now() - user.lastPasswordResetAt.getTime()) / (1000 * 60)
-      );
-      return {
-        success: false,
-        message: `Password was recently reset. Please wait ${minutesRemaining} minute${minutesRemaining !== 1 ? "s" : ""} before trying again.`,
-      };
-    }
-  }
-
-  // Guard 2: OTP must exist and not be expired
+  // Guard 1: OTP must exist and not be expired
   if (!user.otpHash || !user.otpExpiresAt) {
     return { success: false, message: "No active OTP found. Please request a new one." };
   }
@@ -199,7 +182,7 @@ export async function verifyOtpAndResetPassword(
     return { success: false, message: "OTP has expired. Please request a new one." };
   }
 
-  // Guard 3: Max 3 failed attempts
+  // Guard 2: Max 3 failed attempts
   if (user.failedOtpAttempts >= 3) {
     await prisma.user.update({
       where: { id: user.id },
@@ -250,7 +233,6 @@ export async function verifyOtpAndResetPassword(
     where: { id: user.id },
     data: {
       hashedPassword,
-      lastPasswordResetAt: new Date(),
       // Clear all OTP fields to prevent replay attacks
       otpHash: null,
       otpExpiresAt: null,

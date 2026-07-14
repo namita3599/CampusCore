@@ -36,7 +36,6 @@ model User {
   otpExpiresAt          DateTime?
   failedOtpAttempts     Int              @default(0)
   lastOtpRequestedAt    DateTime?
-  lastPasswordResetAt   DateTime?
   // ─────────────────────────────────────────────────────────────
   studentProfile        StudentProfile?
   teacherProfile        TeacherProfile?
