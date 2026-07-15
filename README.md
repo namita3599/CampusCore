@@ -1,32 +1,42 @@
-# 🎓 CampusCore — AI-ERP Integrated Student Management System
+# 🎓 CampusCore — Multi-Tenant AI-ERP Integrated Student Management System
 
-A full-stack **Next.js 16** application with role-based access control for **Admin**, **Student**, **Teacher**, and **Warden** roles, backed by **Supabase PostgreSQL** via **Prisma ORM 7** and secured with **NextAuth.js v4**.
+CampusCore is a modern, enterprise-ready **Multi-Tenant SaaS** ERP platform designed for schools, colleges, and universities. Built with **Next.js 16 (App Router + Server Actions)**, **Supabase PostgreSQL (Prisma ORM 7)**, and **FastAPI**, it provides seamless row-level tenant isolation, automated fee administration, and AI-powered facial recognition.
+
+---
+
+## 🏛️ Multi-Tenant SaaS Architecture
+
+CampusCore utilizes a **Shared Database (Row-Level Isolation)** architecture:
+- **Tenant Isolation**: Model entities (Users, StudentProfiles, Hostels, Subjects, Complaints, etc.) carry an `institutionId` reference.
+- **Request Scoping**: Database queries are automatically filtered using a request-based Prisma client extension (`lib/prisma.ts`) triggered by a Next.js proxy header (`x-tenant-id`) or session token, preventing cross-tenant data leaks.
+- **Unified Login**: A 4-field centralized login (Institution Code + Role + Username + Password) dynamically resolves the user's institution context and redirects them to their role's isolated dashboard.
+- **Institution Registration**: Public endpoint at `/register-institution` allows new colleges to register, setting up their tenant record and primary admin account atomically.
 
 ---
 
 ## ✨ Features
 
-- **Universal Login** with role selector (Admin / Student / Teacher / Warden)
-- **Role-based proxy** — each role is locked to its own dashboard
-- **Admin Dashboard** — create users, manage subjects & hostels, view fee status
-- **Student Dashboard** — 3-step wizard: course registration → tuition → hostel fee
-- **Teacher Dashboard** — view assigned subject and enrolled students
-- **Warden Dashboard** — view assigned hostel and resident students
-- **Clean institutional UI** built with Tailwind CSS and shadcn/ui primitives
+- **Institution Setup**: Genesis flow creates the Tenant (`Institution`) and primary `ADMIN` atomically.
+- **4-Field Authentication**: Login requires choosing a portal role (Student, Teacher, Warden, Admin) matching the database record.
+- **Admin Dashboard**: Bulk upload students/teachers via Excel, create courses, assign warden-to-hostels and teacher-to-subjects.
+- **Student Dashboard**: 3-step enrollment wizard (Course registration → Tuition payment → Hostel room selection).
+- **Teacher Dashboard**: Scoped student rosters, course grades, and real-time daily attendance grids.
+- **Warden Dashboard**: Hostel room allocation, resident occupancy charts, and complaint tracking.
+- **AI Facial Recognition**: Local Python FastAPI service storing facial embeddings via `pgvector` for attendance tracking.
 
 ---
 
-## 🛠 Tech Stack
+## 🛠️ Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 16 (App Router + Server Actions) |
-| Auth | NextAuth.js v4 (CredentialsProvider + JWT) |
+| Frontend / Server | Next.js 16 (React 19, Server Actions, App Router) |
+| AI Microservice | FastAPI (Python, Uvicorn, pgvector) |
 | Database | Supabase (PostgreSQL) |
-| ORM | Prisma ORM 7 |
-| DB Adapter | `@prisma/adapter-pg` |
+| ORM | Prisma ORM 7 (`@prisma/adapter-pg`) |
+| Auth | NextAuth.js v4 (Credentials Provider + JWT) |
+| Cache & Limits | Upstash Redis |
 | Styling | Tailwind CSS v4 |
-| Language | TypeScript |
 
 ---
 
@@ -35,154 +45,97 @@ A full-stack **Next.js 16** application with role-based access control for **Adm
 ### Prerequisites
 
 - Node.js 18+
-- A [Supabase](https://supabase.com) account and project (free tier works)
+- Python 3.10+
+- A Supabase PostgreSQL database with the `vector` extension enabled
 
-### 1. Clone the repository
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/namita3599/CampusCore.git
 cd CampusCore
-```
-
-### 2. Install dependencies
-
-```bash
 npm install
 ```
 
-### 3. Set up Supabase
+### 2. Configure Environment
 
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Navigate to **Project Settings → Database → Connection string**
-3. Copy both connection strings as described below
-
-### 4. Configure environment variables
+Create `.env` based on the example:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your Supabase credentials and a real NextAuth secret:
+Ensure all connection strings, NextAuth secrets, SMTP mail credentials, and Upstash keys are filled in.
 
-```env
-# Transaction pooler (port 6543) — used by the Next.js app at runtime
-DATABASE_URL="postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+---
 
-# Direct connection (port 5432) — used by Prisma CLI for db push / migrations
-DIRECT_URL="postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres"
+## 🗄️ Database Setup & Migrations (Supabase Safe)
 
-NEXTAUTH_SECRET="your-secret-here"   # openssl rand -base64 32
-NEXTAUTH_URL="http://localhost:3000"
-```
+Because Supabase blocks the creation of temporary database instances, standard `prisma migrate dev` (which requires a shadow database) is disabled. Use the following workflow to apply schema changes safely:
 
-> **Why two URLs?**
-> - `DATABASE_URL` goes through pgBouncer (Supabase's connection pooler) — efficient for serverless/edge runtimes.
-> - `DIRECT_URL` is a plain direct connection used by Prisma CLI (`db push` / `migrate`) — pgBouncer doesn't support the DDL statements that schema changes require.
-
-### 5. Sync schema to Supabase
-
+### 1. Re-generate Client Types
 ```bash
-npx prisma db push
+npx prisma generate
 ```
 
-This also regenerates the Prisma client in this project.
-
-### 6. Seed demo data
-
+### 2. Setup Baseline Migration (If setting up for the first time)
 ```bash
-npm run db:seed
+# Capture current database state
+npx prisma migrate diff --from-empty --to-config-datasource --script > prisma/migrations/0_init_baseline/migration.sql
+
+# Mark the baseline as already applied
+npx prisma migrate resolve --applied "0_init_baseline"
 ```
 
-This creates the following demo accounts:
+### 3. Generate & Apply Schema Updates
+```bash
+# 1. Generate the diff SQL script
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script > prisma/migrations/[migration_name]/migration.sql
 
-| Role | Username | Password |
-|---|---|---|
-| Admin | `admin` | `adminPassword123` |
-| Student | `student_alice` | `student123` |
-| Teacher | `teacher_john` | `teacher123` |
-| Warden | `warden_mary` | `warden123` |
+# 2. Execute the script directly on your database
+npx prisma db execute --file prisma/migrations/[migration_name]/migration.sql
 
-### 7. Start the development server
+# 3. Mark the migration as resolved in history
+npx prisma migrate resolve --applied "[migration_name]"
+```
+
+### 4. Seed Seed Data
+```bash
+npx prisma db seed
+```
+
+---
+
+## 💻 Running the Application
+
+To run both Next.js and the AI Facial Recognition microservice concurrently:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+- **Next.js Web Client**: [http://localhost:3000](http://localhost:3000)
+- **FastAPI Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## 📁 Project Structure
+## 🔐 Role-Based Access Controls
 
-```
-erp-student-management/
-├── app/
-│   ├── api/auth/[...nextauth]/route.ts   # NextAuth handler + authOptions
-│   ├── dashboard/
-│   │   ├── layout.tsx                    # Shared dashboard layout (sidebar)
-│   │   ├── components/Sidebar.tsx        # Role-aware sidebar navigation
-│   │   ├── admin/                        # Admin dashboard + Server Actions
-│   │   ├── student/                      # Student 3-step wizard
-│   │   ├── teacher/                      # Teacher dashboard
-│   │   └── warden/                       # Warden dashboard
-│   ├── login/page.tsx                    # Universal login page
-│   ├── providers.tsx                     # NextAuth SessionProvider
-│   └── globals.css                       # Global styles
-├── lib/prisma.ts                         # Prisma singleton (pg adapter)
-├── proxy.ts                               # Role-based route protection
-├── prisma/
-│   ├── schema.prisma                     # Database schema (PostgreSQL)
-│   └── seed.ts                           # Demo data seeder
-├── prisma.config.ts                      # Prisma 7 datasource config (DIRECT_URL)
-├── .env.example                          # Example environment variables
-└── types/next-auth.d.ts                  # Session/JWT type augmentation
-```
+Access is matched to specific route groups inside `proxy.ts`:
 
----
-
-## 🔐 Role-Based Access
-
-| Route Prefix | Allowed Role |
+| Route Prefix | Role Access |
 |---|---|
 | `/dashboard/admin/*` | ADMIN |
 | `/dashboard/student/*` | STUDENT |
 | `/dashboard/teacher/*` | TEACHER |
 | `/dashboard/warden/*` | WARDEN |
 
-Unauthorized access is automatically redirected to the correct dashboard.
-
 ---
 
-## 📝 Available Scripts
+## 📝 Seeding Multi-Tenant Demo Data
 
-```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run db:generate   # Generate Prisma client
-npm run db:push      # Sync Prisma schema to Supabase and regenerate client
-npm run db:seed      # Seed demo data
-npm run db:studio    # Open Prisma Studio (database GUI)
-```
-
----
-
-## 🗄 Database Schema
-
-```
-User ──┬── StudentProfile ──┬── StudentSubject ── Subject ── TeacherProfile ── User
-       ├── TeacherProfile   └── StudentHostel  ── Hostel  ── WardenProfile  ── User
-       └── WardenProfile
-```
-
-All tables are hosted on **Supabase PostgreSQL** with row-level security available for future hardening.
-
----
-
-## ☁️ Deployment
-
-This app is deployment-ready for **Vercel** (recommended with Supabase):
-
-1. Push your code to GitHub
-2. Import the repo on [vercel.com](https://vercel.com)
-3. Add the environment variables (`DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`)
-4. Deploy — Vercel + Supabase work natively together
+The database seeder setup creates a tenant college:
+- **Institution Code**: `demo2024`
+- **Admin**: `admin` / `adminPassword123`
+- **Student**: `co_cse-2026-001` / `student123`
+- **Teacher**: `teacher_john` / `teacher123`
+- **Warden**: `warden_mary` / `warden123`
