@@ -36,7 +36,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { prisma } from "@/lib/prisma";
+import { getTenantPrisma } from "@/lib/prisma-tenant";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Type for each row in the attendance array from the request body
@@ -58,6 +58,13 @@ export async function POST(req: NextRequest) {
       { status: 401 },
     );
   }
+
+  const institutionId = session.user.institutionId;
+  if (!institutionId) {
+    return NextResponse.json({ error: "No institution context in session." }, { status: 401 });
+  }
+
+  const db = getTenantPrisma(institutionId);
 
   // ── Parse and validate request body ──────────────────────────────────────
   let body: { subjectId: unknown; date: unknown; attendance: unknown };
@@ -99,8 +106,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Verify the subject exists ─────────────────────────────────────────────
-  const subject = await prisma.subject.findUnique({
+  // ── Verify the subject exists (tenant-scoped) ──────────────────────────────
+  const subject = await db.subject.findUnique({
     where: { id: subjectId },
     select: { id: true },
   });
@@ -119,9 +126,9 @@ export async function POST(req: NextRequest) {
   try {
     const entries = attendance as AttendanceEntry[];
 
-    await prisma.$transaction(
+    await db.$transaction(
       entries.map(({ studentId, status }) =>
-        prisma.attendanceRecord.upsert({
+        db.attendanceRecord.upsert({
           where: {
             studentId_subjectId_date: {
               studentId: Number(studentId),
@@ -134,6 +141,7 @@ export async function POST(req: NextRequest) {
             status,
           },
           create: {
+            institutionId,
             studentId: Number(studentId),
             subjectId: Number(subjectId),
             date: attendanceDate,

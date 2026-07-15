@@ -23,44 +23,86 @@ enum FeeStatus {
   UNPAID
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-Tenancy: Institution (Tenant) Model
+// Each college/institution gets one row. The `slug` is the Institution Code
+// that students/staff enter at login (e.g. "mit2024").
+// ─────────────────────────────────────────────────────────────────────────────
+model Institution {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique // The "Institution Code" used at login
+  createdAt DateTime @default(now())
+
+  // ── Relations (back-references from all tenant-scoped models) ──────────────
+  users             User[]
+  studentProfiles   StudentProfile[]
+  teacherProfiles   TeacherProfile[]
+  wardenProfiles    WardenProfile[]
+  rooms             Room[]
+  hostels           Hostel[]
+  subjects          Subject[]
+  announcements     Announcement[]
+  complaints        Complaint[]
+  systemSettings    SystemSettings[]
+  feeRecords        FeeRecord[]
+  invoices          Invoice[]
+  transactions      Transaction[]
+  attendanceRecords AttendanceRecord[]
+}
+
 model User {
-  id                    Int              @id @default(autoincrement())
-  username              String           @unique
-  email                 String?          @unique
-  hashedPassword        String
-  role                  Role
-  forcePasswordChange   Boolean          @default(true)
-  createdAt             DateTime         @default(now())
-  // ── OTP / Password-reset fields ──────────────────────────────
-  otpHash               String?
-  otpExpiresAt          DateTime?
-  failedOtpAttempts     Int              @default(0)
-  lastOtpRequestedAt    DateTime?
-  // ─────────────────────────────────────────────────────────────
-  studentProfile        StudentProfile?
-  teacherProfile        TeacherProfile?
-  wardenProfile         WardenProfile?
-  heldRooms             Room[]           @relation("RoomHeldByUser")
-  bookedRoom            Room?            @relation("RoomBookedByUser")
-  announcementReads     AnnouncementRead[]
-  transactions          Transaction[]
+  id                  Int                @id @default(autoincrement())
+  // ── Tenant FK (optional for soft-rollout — existing rows have NULL) ─────────
+  institutionId       String?
+  institution         Institution?       @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ─────────────────────────────────────────────────────────────
+  // @unique removed — composite @@unique below prevents cross-tenant collisions
+  username            String
+  email               String?            @unique
+  hashedPassword      String
+  role                Role
+  forcePasswordChange Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  // ── OTP / Password-reset fields ──────────────────────────────────────────
+  otpHash             String?
+  otpExpiresAt        DateTime?
+  failedOtpAttempts   Int                @default(0)
+  lastOtpRequestedAt  DateTime?
+  // ─────────────────────────────────────────────────────────────────────────
+  studentProfile      StudentProfile?
+  teacherProfile      TeacherProfile?
+  wardenProfile       WardenProfile?
+  heldRooms           Room[]             @relation("RoomHeldByUser")
+  bookedRoom          Room?              @relation("RoomBookedByUser")
+  announcementReads   AnnouncementRead[]
+  transactions        Transaction[]
+
+  // Composite unique: one username per institution
+  @@unique([institutionId, username])
 }
 
 model StudentProfile {
-  id                Int              @id @default(autoincrement())
-  userId            Int              @unique
-  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                Int                         @id @default(autoincrement())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId     String?
+  institution       Institution?                @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
+  userId            Int                         @unique
+  user              User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
   name              String
   branch            String
-  rollNumber        String?          @unique
+  // @unique removed — composite @@unique below prevents cross-tenant collisions
+  rollNumber        String?
   phone             String?
   guardianName      String?
   yearOfAdmission   Int?
   bloodGroup        String?
-  courseRegistered  Boolean          @default(false)
-  tuitionPaid       Boolean          @default(false)
-  hostelPaid        Boolean          @default(false)
+  courseRegistered  Boolean                     @default(false)
+  tuitionPaid       Boolean                     @default(false)
+  hostelPaid        Boolean                     @default(false)
   profilePictureUrl String?
+  // PRESERVED EXACTLY — pgvector type must not be altered
   faceEmbedding     Unsupported("vector(128)")?
   studentSubjects   StudentSubject[]
   studentHostels    StudentHostel[]
@@ -68,44 +110,69 @@ model StudentProfile {
   invoices          Invoice[]
   complaints        Complaint[]
   attendanceRecords AttendanceRecord[]
+
+  // Composite unique: one roll number per institution
+  @@unique([institutionId, rollNumber])
 }
 
 model TeacherProfile {
-  id       Int      @id @default(autoincrement())
-  userId   Int      @unique
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name     String
-  phone    String?
-  subjects Subject[] @relation("TeacherSubject")
+  id            Int          @id @default(autoincrement())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
+  userId        Int          @unique
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String?
+  subjects      Subject[]    @relation("TeacherSubject")
 }
 
 model WardenProfile {
-  id      Int      @id @default(autoincrement())
-  userId  Int      @unique
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name    String
-  phone   String?
-  hostels Hostel[] @relation("WardenHostel")
+  id            Int          @id @default(autoincrement())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
+  userId        Int          @unique
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String?
+  hostels       Hostel[]     @relation("WardenHostel")
 }
 
 model Subject {
   id                Int                @id @default(autoincrement())
-  name              String             @unique
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId     String?
+  institution       Institution?       @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields — @unique removed in favour of @@unique composite below ──────
+  name              String
   teacherId         Int?
   teacher           TeacherProfile?    @relation("TeacherSubject", fields: [teacherId], references: [id], onDelete: SetNull)
   studentSubjects   StudentSubject[]
   complaints        Complaint[]
   attendanceRecords AttendanceRecord[]
+
+  // Composite unique: one subject name per institution
+  @@unique([institutionId, name])
 }
 
 model Hostel {
   id             Int             @id @default(autoincrement())
-  name           String          @unique
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId  String?
+  institution    Institution?    @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields — @unique removed in favour of @@unique composite below ──────
+  name           String
   wardenId       Int?
   warden         WardenProfile?  @relation("WardenHostel", fields: [wardenId], references: [id], onDelete: SetNull)
   studentHostels StudentHostel[]
   rooms          Room[]
   complaints     Complaint[]
+
+  // Composite unique: one hostel name per institution
+  @@unique([institutionId, name])
 }
 
 model StudentSubject {
@@ -128,20 +195,32 @@ model StudentHostel {
 }
 
 model Room {
-  id             String         @id @default(uuid())
-  roomNumber     String         @unique
-  status         String         @default("AVAILABLE") // "AVAILABLE", "HELD", "BOOKED"
+  id             String       @id @default(uuid())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId  String?
+  institution    Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields — @unique removed in favour of @@unique composite below ──────
+  roomNumber     String
+  status         String       @default("AVAILABLE") // "AVAILABLE", "HELD", "BOOKED"
   heldByUserId   Int?
-  heldByUser     User?          @relation("RoomHeldByUser", fields: [heldByUserId], references: [id], onDelete: SetNull)
+  heldByUser     User?        @relation("RoomHeldByUser", fields: [heldByUserId], references: [id], onDelete: SetNull)
   holdExpiresAt  DateTime?
-  bookedByUserId Int?           @unique
-  bookedByUser   User?          @relation("RoomBookedByUser", fields: [bookedByUserId], references: [id], onDelete: SetNull)
+  // bookedByUserId @unique preserved — one room per user (globally valid)
+  bookedByUserId Int?         @unique
+  bookedByUser   User?        @relation("RoomBookedByUser", fields: [bookedByUserId], references: [id], onDelete: SetNull)
   hostelId       Int
-  hostel         Hostel         @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  hostel         Hostel       @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+
+  // Composite unique: one room number per institution
+  @@unique([institutionId, roomNumber])
 }
 
 model Announcement {
   id                Int                @id @default(autoincrement())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId     String?
+  institution       Institution?       @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
   title             String
   content           String
   targetRole        String             @default("ALL") // "ALL", "STUDENT", "TEACHER", "WARDEN"
@@ -159,13 +238,24 @@ model AnnouncementRead {
 }
 
 model SystemSettings {
-  id                         Int     @id @default(1)
-  courseRegistrationLocked   Boolean @default(false)
-  tuitionPaymentLocked       Boolean @default(false)
+  id                       Int          @id @default(1)
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  // NOTE: The singleton @id @default(1) pattern is preserved.
+  // For multi-tenant use, query by institutionId. The singleton must be
+  // seeded once per institution during the Genesis Flow (registerInstitution).
+  institutionId            String?
+  institution              Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
+  courseRegistrationLocked Boolean      @default(false)
+  tuitionPaymentLocked     Boolean      @default(false)
 }
 
 model FeeRecord {
   id            Int            @id @default(autoincrement())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId String?
+  institution   Institution?   @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
   studentId     Int
   student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
   type          FeeType
@@ -177,66 +267,83 @@ model FeeRecord {
   createdAt     DateTime       @default(now())
   invoice       Invoice?
 
+  // Original composite preserved — studentId is already tenant-scoped via StudentProfile
   @@unique([studentId, type, term])
 }
 
 model Invoice {
-  id           String        @id @default(uuid())
-  studentId    Int
-  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  amount       Float
-  isPaid       Boolean       @default(false)
-  paidAt       DateTime?
-  feeRecordId  Int?          @unique
-  feeRecord    FeeRecord?    @relation(fields: [feeRecordId], references: [id], onDelete: SetNull)
-  createdAt    DateTime      @default(now())
-  transactions Transaction[]
+  id            String         @id @default(uuid())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId String?
+  institution   Institution?   @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
+  studentId     Int
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount        Float
+  isPaid        Boolean        @default(false)
+  paidAt        DateTime?
+  feeRecordId   Int?           @unique
+  feeRecord     FeeRecord?     @relation(fields: [feeRecordId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  transactions  Transaction[]
 }
 
 model Transaction {
-  id              String   @id @default(uuid())
+  id              String       @id @default(uuid())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId   String?
+  institution     Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
   invoiceId       String
-  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice         Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   userId          Int
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount          Float
-  status          String   @default("PENDING") // "PENDING", "SUCCESS", "FAILED"
-  razorpayOrderId String?  @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  status          String       @default("PENDING") // "PENDING", "SUCCESS", "FAILED"
+  razorpayOrderId String?      @unique
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
 model Complaint {
-  id          Int            @id @default(autoincrement())
-  title       String
-  description String
-  category    String         // "COURSE" or "HOSTEL"
-  status      String         @default("PENDING") // "PENDING", "RESOLVED"
-  createdAt   DateTime       @default(now())
-  resolvedAt  DateTime?
-  resolution  String?        // Reply from Teacher or Warden
-  studentId   Int
-  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subjectId   Int?
-  subject     Subject?       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
-  hostelId    Int?
-  hostel      Hostel?        @relation(fields: [hostelId], references: [id], onDelete: SetNull)
+  id            Int            @id @default(autoincrement())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId String?
+  institution   Institution?   @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
+  title         String
+  description   String
+  category      String // "COURSE" or "HOSTEL"
+  status        String         @default("PENDING") // "PENDING", "RESOLVED"
+  createdAt     DateTime       @default(now())
+  resolvedAt    DateTime?
+  resolution    String? // Reply from Teacher or Warden
+  studentId     Int
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId     Int?
+  subject       Subject?       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  hostelId      Int?
+  hostel        Hostel?        @relation(fields: [hostelId], references: [id], onDelete: SetNull)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI Attendance System
 // ─────────────────────────────────────────────────────────────────────────────
 model AttendanceRecord {
-  id        Int            @id @default(autoincrement())
-  studentId Int
-  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subjectId Int
-  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  id            Int            @id @default(autoincrement())
+  // ── Tenant FK ────────────────────────────────────────────────────────────────
+  institutionId String?
+  institution   Institution?   @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  // ── Core fields ──────────────────────────────────────────────────────────────
+  studentId     Int
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId     Int
+  subject       Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   // @db.Date stores a pure date (no time) in PostgreSQL so the unique
   // constraint below reliably prevents duplicate records for the same day.
-  date      DateTime       @db.Date
-  status    String         // "PRESENT" or "ABSENT"
-  createdAt DateTime       @default(now())
+  date          DateTime       @db.Date
+  status        String // "PRESENT" or "ABSENT"
+  createdAt     DateTime       @default(now())
 
   // One record per student per subject per day.
   // upsert in the API route will update status if teacher resubmits.

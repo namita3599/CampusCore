@@ -8,6 +8,11 @@ declare module "next-auth" {
       id: string;
       username: string;
       role: Role;
+      /** CUID of the tenant's Institution row.  Always present after login.
+       *  Pass this to `getTenantPrisma(institutionId)` for row-level isolation. */
+      institutionId: string;
+      /** If true, redirect the user to change-password before anything else. */
+      forcePasswordChange: boolean;
       name?: string | null;
       email?: string | null;
       image?: string | null;
@@ -18,6 +23,8 @@ declare module "next-auth" {
     id: string;
     username: string;
     role: Role;
+    institutionId: string;
+    forcePasswordChange: boolean;
   }
 }
 
@@ -26,5 +33,7 @@ declare module "next-auth/jwt" {
     id: string;
     username: string;
     role: Role;
+    institutionId: string;
+    forcePasswordChange: boolean;
   }
 }

@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import nodemailer from "nodemailer";
-import { prisma } from "@/lib/prisma";
+import { getTenantPrisma } from "@/lib/prisma-tenant";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { Role } from "@prisma/client";
 
@@ -23,6 +23,9 @@ export async function POST(req: NextRequest) {
   if (session?.user?.role !== "ADMIN") {
     return new NextResponse("Forbidden", { status: 403 });
   }
+
+  const institutionId = session.user.institutionId;
+  const db = getTenantPrisma(institutionId);
 
   try {
     const formData = await req.formData();
@@ -95,18 +98,19 @@ export async function POST(req: NextRequest) {
           const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
           // Save Student inside Transaction
-          await prisma.$transaction(async (tx) => {
-            const duplicateRoll = await tx.studentProfile.findFirst({ where: { rollNumber } });
+          await db.$transaction(async (tx: any) => {
+            const duplicateRoll = await tx.studentProfile.findFirst({ where: { institutionId, rollNumber } });
             if (duplicateRoll) throw new Error(`Roll number ${rollNumber} already registered.`);
 
-            const duplicateUsername = await tx.user.findUnique({ where: { username } });
+            const duplicateUsername = await tx.user.findFirst({ where: { institutionId, username } });
             if (duplicateUsername) throw new Error(`Username ${username} already exists.`);
 
-            const duplicateEmail = await tx.user.findUnique({ where: { email } });
+            const duplicateEmail = await tx.user.findFirst({ where: { institutionId, email } });
             if (duplicateEmail) throw new Error(`Email ${email} already registered.`);
 
             await tx.user.create({
               data: {
+                institutionId,
                 username,
                 email,
                 hashedPassword,
@@ -114,6 +118,7 @@ export async function POST(req: NextRequest) {
                 forcePasswordChange: true,
                 studentProfile: {
                   create: {
+                    institutionId,
                     name,
                     branch,
                     rollNumber,
@@ -164,20 +169,21 @@ export async function POST(req: NextRequest) {
 
           let subjectId: number | undefined = undefined;
           if (subjectName) {
-            const subject = await prisma.subject.findUnique({ where: { name: subjectName } });
+            const subject = await db.subject.findFirst({ where: { name: subjectName } });
             if (subject) subjectId = subject.id;
           }
 
           // Save Teacher
-          await prisma.$transaction(async (tx) => {
-            const duplicateEmail = await tx.user.findUnique({ where: { email } });
+          await db.$transaction(async (tx: any) => {
+            const duplicateEmail = await tx.user.findFirst({ where: { institutionId, email } });
             if (duplicateEmail) throw new Error(`Email ${email} already registered.`);
 
-            const duplicateUsername = await tx.user.findUnique({ where: { username } });
+            const duplicateUsername = await tx.user.findFirst({ where: { institutionId, username } });
             if (duplicateUsername) throw new Error(`Username ${username} already exists.`);
 
             await tx.user.create({
               data: {
+                institutionId,
                 username,
                 email,
                 hashedPassword,
@@ -185,6 +191,7 @@ export async function POST(req: NextRequest) {
                 forcePasswordChange: true,
                 teacherProfile: {
                   create: {
+                    institutionId,
                     name,
                     phone,
                     ...(subjectId ? { subjects: { connect: [{ id: subjectId }] } } : {}),
@@ -231,20 +238,21 @@ export async function POST(req: NextRequest) {
 
           let hostelId: number | undefined = undefined;
           if (hostelName) {
-            const hostel = await prisma.hostel.findUnique({ where: { name: hostelName } });
+            const hostel = await db.hostel.findFirst({ where: { name: hostelName } });
             if (hostel) hostelId = hostel.id;
           }
 
           // Save Warden
-          await prisma.$transaction(async (tx) => {
-            const duplicateEmail = await tx.user.findUnique({ where: { email } });
+          await db.$transaction(async (tx: any) => {
+            const duplicateEmail = await tx.user.findFirst({ where: { institutionId, email } });
             if (duplicateEmail) throw new Error(`Email ${email} already registered.`);
 
-            const duplicateUsername = await tx.user.findUnique({ where: { username } });
+            const duplicateUsername = await tx.user.findFirst({ where: { institutionId, username } });
             if (duplicateUsername) throw new Error(`Username ${username} already exists.`);
 
             await tx.user.create({
               data: {
+                institutionId,
                 username,
                 email,
                 hashedPassword,
@@ -252,6 +260,7 @@ export async function POST(req: NextRequest) {
                 forcePasswordChange: true,
                 wardenProfile: {
                   create: {
+                    institutionId,
                     name,
                     phone,
                     ...(hostelId ? { hostels: { connect: [{ id: hostelId }] } } : {}),

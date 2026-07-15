@@ -30,7 +30,7 @@ async function getAdminData() {
     prisma.teacherProfile.count(),
     prisma.wardenProfile.count(),
     prisma.studentProfile.count({ where: { tuitionPaid: true } }),
-    prisma.studentHostel.groupBy({ by: ["studentId"] }).then((r) => r.length),
+    prisma.studentProfile.count({ where: { studentHostels: { some: {} } } }),
     prisma.studentProfile.count({
       where: { OR: [{ tuitionPaid: false }, { hostelPaid: false }] },
     }),

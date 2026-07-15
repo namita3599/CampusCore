@@ -31,7 +31,7 @@ export async function requestPasswordResetOtp(
     return { success: false, message: "Email is required." };
   }
 
-  // 1. Look up the user by email
+  // 1. Look up the user by email (globally unique index)
   const user = await prisma.user.findUnique({
     where: { email: email.trim().toLowerCase() },
     select: {
@@ -153,7 +153,7 @@ export async function verifyOtpAndResetPassword(
     };
   }
 
-  // Fetch user
+  // Fetch user by email (globally unique index)
   const user = await prisma.user.findUnique({
     where: { email: email.trim().toLowerCase() },
     select: {

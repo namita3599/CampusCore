@@ -1,3 +1,18 @@
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║               CampusCore – Multi-Tenant Seed Script                          ║
+ * ║                         prisma/seed.ts                                        ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
+ *
+ * Seeds a single demo institution ("demo2024") with all demo users.
+ * Uses the same Genesis Flow pattern as registerInstitution.ts:
+ *   1. Upsert the Institution row
+ *   2. Upsert all other rows with institutionId stamped
+ *
+ * Run with:
+ *   npx prisma db seed
+ */
+
 import { PrismaClient, Role } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
@@ -9,93 +24,117 @@ if (!connectionString) throw new Error("DATABASE_URL is not set in .env");
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
-async function main() {
-  console.log("🌱 Seeding database...");
+// ── Demo institution slug (Institution Code users type at login) ───────────────
+const DEMO_SLUG = "demo2024";
 
-  // Admin user
+async function main() {
+  console.log("🌱 Seeding multi-tenant database...");
+
+  // ── 1. Upsert the demo Institution (Tenant) ────────────────────────────────
+  const institution = await prisma.institution.upsert({
+    where: { slug: DEMO_SLUG },
+    update: { name: "CampusCore Demo College" },
+    create: {
+      name: "CampusCore Demo College",
+      slug: DEMO_SLUG,
+    },
+  });
+  console.log(`✅ Institution: "${institution.name}" (slug: ${institution.slug}, id: ${institution.id})`);
+
+  const iid = institution.id; // shorthand for institutionId
+
+  // ── 2. Admin user ─────────────────────────────────────────────────────────
   const hashedAdminPassword = await bcrypt.hash("adminPassword123", 12);
   const admin = await prisma.user.upsert({
-    where: { username: "admin" },
+    where: { institutionId_username: { institutionId: iid, username: "admin" } },
     update: {},
     create: {
+      institutionId: iid,
       username: "admin",
       hashedPassword: hashedAdminPassword,
       role: Role.ADMIN,
+      forcePasswordChange: false,
     },
   });
-  console.log(`✅ Admin user created: ${admin.username}`);
+  console.log(`✅ Admin user: ${admin.username}`);
 
-  // Demo subjects
+  // ── 3. Demo SystemSettings (per-tenant singleton) ─────────────────────────
+  // The DB may already have a legacy row with id=1 from the old single-tenant schema.
+  // We upsert by institutionId if a row already exists, otherwise we try create.
+  // We use a raw "INSERT ... ON CONFLICT DO UPDATE" to safely handle both cases.
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "SystemSettings" ("institutionId", "courseRegistrationLocked", "tuitionPaymentLocked")
+    VALUES ($1, false, false)
+    ON CONFLICT DO NOTHING
+  `, iid);
+  // If the legacy row exists without institutionId, stamp it (no LIMIT in PG UPDATE)
+  await prisma.$executeRawUnsafe(`
+    UPDATE "SystemSettings" SET "institutionId" = $1
+    WHERE "institutionId" IS NULL
+      AND ctid = (SELECT ctid FROM "SystemSettings" WHERE "institutionId" IS NULL LIMIT 1)
+  `, iid);
+  console.log(`✅ SystemSettings ready for institution`);
+
+  // ── 4. Demo subjects ───────────────────────────────────────────────────────
   const subject1 = await prisma.subject.upsert({
-    where: { name: "Mathematics" },
+    where: { institutionId_name: { institutionId: iid, name: "Mathematics" } },
     update: {},
-    create: { name: "Mathematics" },
+    create: { institutionId: iid, name: "Mathematics" },
   });
   const subject2 = await prisma.subject.upsert({
-    where: { name: "Physics" },
+    where: { institutionId_name: { institutionId: iid, name: "Physics" } },
     update: {},
-    create: { name: "Physics" },
+    create: { institutionId: iid, name: "Physics" },
   });
   const subject3 = await prisma.subject.upsert({
-    where: { name: "Computer Science" },
+    where: { institutionId_name: { institutionId: iid, name: "Computer Science" } },
     update: {},
-    create: { name: "Computer Science" },
+    create: { institutionId: iid, name: "Computer Science" },
   });
   console.log(`✅ Subjects created`);
 
-  // Demo hostels
+  // ── 5. Demo hostels ────────────────────────────────────────────────────────
   const hostel1 = await prisma.hostel.upsert({
-    where: { name: "Hostel A" },
+    where: { institutionId_name: { institutionId: iid, name: "Hostel A" } },
     update: {},
-    create: { name: "Hostel A" },
+    create: { institutionId: iid, name: "Hostel A" },
   });
   const hostel2 = await prisma.hostel.upsert({
-    where: { name: "Hostel B" },
+    where: { institutionId_name: { institutionId: iid, name: "Hostel B" } },
     update: {},
-    create: { name: "Hostel B" },
+    create: { institutionId: iid, name: "Hostel B" },
   });
   console.log(`✅ Hostels created`);
 
-  // Create rooms for Hostel A
-  const roomsA = ["A-101", "A-102", "A-103", "A-104", "A-105"];
-  for (const rNum of roomsA) {
+  // ── 6. Rooms ───────────────────────────────────────────────────────────────
+  for (const rNum of ["A-101", "A-102", "A-103", "A-104", "A-105"]) {
     await prisma.room.upsert({
-      where: { roomNumber: rNum },
+      where: { institutionId_roomNumber: { institutionId: iid, roomNumber: rNum } },
       update: {},
-      create: {
-        roomNumber: rNum,
-        status: "AVAILABLE",
-        hostelId: hostel1.id,
-      },
+      create: { institutionId: iid, roomNumber: rNum, status: "AVAILABLE", hostelId: hostel1.id },
     });
   }
-
-  // Create rooms for Hostel B
-  const roomsB = ["B-101", "B-102", "B-103", "B-104", "B-105"];
-  for (const rNum of roomsB) {
+  for (const rNum of ["B-101", "B-102", "B-103", "B-104", "B-105"]) {
     await prisma.room.upsert({
-      where: { roomNumber: rNum },
+      where: { institutionId_roomNumber: { institutionId: iid, roomNumber: rNum } },
       update: {},
-      create: {
-        roomNumber: rNum,
-        status: "AVAILABLE",
-        hostelId: hostel2.id,
-      },
+      create: { institutionId: iid, roomNumber: rNum, status: "AVAILABLE", hostelId: hostel2.id },
     });
   }
   console.log(`✅ Rooms created`);
 
-  // Demo teacher — create user first, then link subject
+  // ── 7. Demo teacher ────────────────────────────────────────────────────────
   const hashedTeacherPwd = await bcrypt.hash("teacher123", 12);
   const teacherUser = await prisma.user.upsert({
-    where: { username: "teacher_john" },
+    where: { institutionId_username: { institutionId: iid, username: "teacher_john" } },
     update: {},
     create: {
+      institutionId: iid,
       username: "teacher_john",
       hashedPassword: hashedTeacherPwd,
       role: Role.TEACHER,
       teacherProfile: {
-        create: { name: "John Smith" },
+        create: { institutionId: iid, name: "John Smith" },
       },
     },
     include: { teacherProfile: true },
@@ -106,19 +145,20 @@ async function main() {
       data: { teacherId: teacherUser.teacherProfile.id },
     });
   }
-  console.log(`✅ Demo teacher created: ${teacherUser.username}`);
+  console.log(`✅ Demo teacher: ${teacherUser.username}`);
 
-  // Demo warden — create user first, then link hostel
+  // ── 8. Demo warden ─────────────────────────────────────────────────────────
   const hashedWardenPwd = await bcrypt.hash("warden123", 12);
   const wardenUser = await prisma.user.upsert({
-    where: { username: "warden_mary" },
+    where: { institutionId_username: { institutionId: iid, username: "warden_mary" } },
     update: {},
     create: {
+      institutionId: iid,
       username: "warden_mary",
       hashedPassword: hashedWardenPwd,
       role: Role.WARDEN,
       wardenProfile: {
-        create: { name: "Mary Johnson" },
+        create: { institutionId: iid, name: "Mary Johnson" },
       },
     },
     include: { wardenProfile: true },
@@ -129,19 +169,21 @@ async function main() {
       data: { wardenId: wardenUser.wardenProfile.id },
     });
   }
-  console.log(`✅ Demo warden created: ${wardenUser.username}`);
+  console.log(`✅ Demo warden: ${wardenUser.username}`);
 
-  // Demo student
+  // ── 9. Demo student ────────────────────────────────────────────────────────
   const hashedStudentPwd = await bcrypt.hash("student123", 12);
-  const studentUser = await prisma.user.upsert({
-    where: { username: "co_cse-2026-001" },
+  await prisma.user.upsert({
+    where: { institutionId_username: { institutionId: iid, username: "co_cse-2026-001" } },
     update: {},
     create: {
+      institutionId: iid,
       username: "co_cse-2026-001",
       hashedPassword: hashedStudentPwd,
       role: Role.STUDENT,
       studentProfile: {
         create: {
+          institutionId: iid,
           name: "Alice Kumar",
           branch: "Computer Science",
           rollNumber: "CSE-2026-001",
@@ -153,16 +195,17 @@ async function main() {
       },
     },
   });
-  console.log(`✅ Demo student created: ${studentUser.username}`);
+  console.log(`✅ Demo student: co_cse-2026-001`);
 
   console.log("\n🎉 Seeding complete!");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("Default credentials:");
-  console.log("  Admin   → username: admin        | password: adminPassword123");
-  console.log("  Teacher → username: teacher_john | password: teacher123");
-  console.log("  Warden  → username: warden_mary  | password: warden123");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("Multi-tenant login credentials:");
+  console.log(`  Institution Code: ${DEMO_SLUG}`);
+  console.log("  Admin   → username: admin           | password: adminPassword123");
+  console.log("  Teacher → username: teacher_john    | password: teacher123");
+  console.log("  Warden  → username: warden_mary     | password: warden123");
   console.log("  Student → username: co_cse-2026-001 | password: student123");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
 main()

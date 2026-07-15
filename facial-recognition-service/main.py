@@ -55,6 +55,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     HTTPException,
     Request,
     UploadFile,
@@ -245,9 +246,18 @@ app.dependency_overrides  # just referencing to show it exists
 # ─────────────────────────────────────────────────────────────────────────────
 
 class ProcessPhotoRequest(BaseModel):
-    """Request body for POST /process-student-photo."""
+    """
+    Request body for POST /process-student-photo.
+
+    Multi-tenant fields
+    ───────────────────
+    institutionId  The CUID of the tenant's Institution row (from the JWT session).
+                   Used in the UPDATE WHERE clause to guarantee the student record
+                   belongs to the correct institution before writing the embedding.
+    """
     studentId: int
     photoUrl: HttpUrl
+    institutionId: str
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -353,14 +363,19 @@ async def process_student_photo(
 
     vector_literal: str = "[" + ",".join(str(v) for v in embedding) + "]"
 
+    # ── Tenant-scoped UPDATE ──────────────────────────────────────────────────
+    # The AND "institutionId" = $3 clause ensures we can only write an embedding
+    # to a StudentProfile that actually belongs to this institution.  If the
+    # institutionId is wrong or missing, rows_updated will be 0 → 404 response.
     sql = """
         UPDATE "StudentProfile"
         SET    "faceEmbedding" = $1::vector
         WHERE  "id" = $2
+          AND  "institutionId" = $3
     """
 
     async with pool.acquire() as conn:
-        result: str = await conn.execute(sql, vector_literal, body.studentId)
+        result: str = await conn.execute(sql, vector_literal, body.studentId, body.institutionId)
 
     rows_updated = int(result.split()[-1])
 
@@ -370,7 +385,12 @@ async def process_student_photo(
             detail=f"No StudentProfile found with id={body.studentId}.",
         )
 
-    logger.info("Embedding saved for studentId=%d (%d dims)", body.studentId, len(embedding))
+    logger.info(
+        "Embedding saved for studentId=%d institutionId=%s (%d dims)",
+        body.studentId,
+        body.institutionId,
+        len(embedding),
+    )
     return {"success": True, "message": "Embedding saved", "dimensions": len(embedding)}
 
 
@@ -386,9 +406,22 @@ async def process_student_photo(
 async def mark_group_attendance(
     photo: Annotated[UploadFile, File(description="Group photo (JPEG/PNG)")],
     pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+    institutionId: str = Form(
+        ...,
+        description=(
+            "CUID of the tenant Institution row (from the caller's JWT session). "
+            "Restricts the pgvector nearest-neighbour search to embeddings that "
+            "belong to this institution only, preventing cross-tenant face matches."
+        ),
+    ),
 ) -> dict[str, Any]:
-    """Matches detected faces against the PostgreSQL database."""
-    logger.info("Group attendance request – filename=%s content_type=%s", photo.filename, photo.content_type)
+    """Matches detected faces against the PostgreSQL database (tenant-scoped)."""
+    logger.info(
+        "Group attendance request – filename=%s content_type=%s institutionId=%s",
+        photo.filename,
+        photo.content_type,
+        institutionId,
+    )
 
     image_bytes: bytes = await photo.read()
     if len(image_bytes) == 0:
@@ -410,13 +443,19 @@ async def mark_group_attendance(
 
     logger.info("Detected %d face(s) in group photo.", len(group_encodings))
 
+    # ── Tenant-scoped SELECT ──────────────────────────────────────────────────
+    # $1 = institutionId: restricts the embedding pool to students who belong
+    # to this institution only.  Without this filter every institution's face
+    # embeddings would participate in the nearest-neighbour search, causing
+    # false-positive matches across colleges.
     fetch_sql = """
         SELECT id, "faceEmbedding"::text AS embedding_text
         FROM   "StudentProfile"
         WHERE  "faceEmbedding" IS NOT NULL
+          AND  "institutionId" = $1
     """
     async with pool.acquire() as conn:
-        rows = await conn.fetch(fetch_sql)
+        rows = await conn.fetch(fetch_sql, institutionId)
 
     if not rows:
         logger.info("No student embeddings are stored in the database yet.")

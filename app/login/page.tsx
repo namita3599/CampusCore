@@ -5,18 +5,10 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
-
-const roleOptions = [
-  { value: "ADMIN", label: "Admin" },
-  { value: "STUDENT", label: "Student" },
-  { value: "TEACHER", label: "Teacher" },
-  { value: "WARDEN", label: "Warden" },
-];
 
 const roleDashboardMap: Record<string, string> = {
   ADMIN: "/dashboard/admin",
@@ -49,7 +41,8 @@ export default function LoginPage() {
   const router = useRouter();
 
   // ── Login form state ────────────────────────────────────────────────────────
-  const [role, setRole] = useState("ADMIN");
+  const [institutionCode, setInstitutionCode] = useState("");
+  const [activeRole, setActiveRole] = useState("STUDENT");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -60,21 +53,32 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!institutionCode.trim()) {
+      setError("Institution Code is required.");
+      return;
+    }
+
     setLoading(true);
 
     const result = await signIn("credentials", {
+      institutionCode: institutionCode.trim().toLowerCase(),
       username,
       password,
-      role,
+      role: activeRole,
       redirect: false,
     });
 
     setLoading(false);
 
     if (result?.error) {
-      setError("Invalid credentials or role mismatch. Please try again.");
+      setError("Invalid institution code, username, password, or role. Please try again.");
     } else {
-      router.push(roleDashboardMap[role]);
+      // Role is embedded in the session — fetch it to redirect correctly
+      const { getSession } = await import("next-auth/react");
+      const session = await getSession();
+      const role = (session?.user as any)?.role ?? "STUDENT";
+      router.push(roleDashboardMap[role] ?? "/dashboard");
       router.refresh();
     }
   };
@@ -124,7 +128,7 @@ export default function LoginPage() {
             <CardHeader className="space-y-2 p-8 pb-6">
               <CardTitle className="text-2xl">Sign in</CardTitle>
               <CardDescription className="text-base">
-                Select your role and enter your institutional credentials.
+                Enter your institution code and credentials to access your dashboard.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-8 pt-0">
@@ -136,21 +140,64 @@ export default function LoginPage() {
                 </div>
               ) : null}
 
-              {/* Login Form */}
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <Tabs value={role} onValueChange={setRole}>
-                  <div className="space-y-3">
-                    <Label className="text-zinc-700">Account Role</Label>
-                    <TabsList className="grid h-auto w-full grid-cols-4 gap-1 bg-zinc-100/80 p-1">
-                      {roleOptions.map((opt) => (
-                        <TabsTrigger key={opt.value} value={opt.value} className="h-9 text-xs sm:text-sm data-[state=active]:shadow-sm">
-                          {opt.label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                  </div>
-                </Tabs>
+              {/* Role Selection Tabs */}
+              <div className="mb-6">
+                <Label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Select Your Portal
+                </Label>
+                <div className="grid grid-cols-4 gap-1 rounded-xl bg-zinc-100 p-1">
+                  {[
+                    { role: "STUDENT", label: "Student" },
+                    { role: "TEACHER", label: "Teacher" },
+                    { role: "WARDEN", label: "Warden" },
+                    { role: "ADMIN", label: "Admin" },
+                  ].map((item) => (
+                    <button
+                      key={item.role}
+                      type="button"
+                      onClick={() => setActiveRole(item.role)}
+                      className={`rounded-lg py-2 text-xs font-semibold transition-all ${
+                        activeRole === item.role
+                          ? "bg-white text-zinc-950 shadow-sm"
+                          : "text-zinc-600 hover:text-zinc-900"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
+              {/* Login Form */}
+              <form onSubmit={handleSubmit} className="space-y-5">
+
+                {/* Institution Code */}
+                <div className="space-y-2">
+                  <Label htmlFor="institution-code">
+                    Institution Code
+                    <span className="ml-1 text-xs font-normal text-zinc-400">(provided by your admin)</span>
+                  </Label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                      </svg>
+                    </span>
+                    <Input
+                      id="institution-code"
+                      type="text"
+                      value={institutionCode}
+                      onChange={(e) => setInstitutionCode(e.target.value)}
+                      placeholder="e.g. mit2024"
+                      autoComplete="organization"
+                      required
+                      className="pl-9 font-mono uppercase tracking-wider focus-visible:ring-zinc-900"
+                      style={{ textTransform: "lowercase" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Username */}
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
                   <Input
@@ -165,6 +212,7 @@ export default function LoginPage() {
                   />
                 </div>
 
+                {/* Password */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Password</Label>
@@ -200,11 +248,24 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
+                  id="sign-in-button"
                   disabled={loading}
                   className="h-11 w-full rounded-md bg-zinc-900 text-white shadow-sm transition-colors hover:bg-zinc-800"
                 >
-                  {loading ? "Authenticating..." : "Sign in to Dashboard"}
+                  {loading ? "Authenticating…" : "Sign in to Dashboard"}
                 </Button>
+
+                <div className="text-center mt-4">
+                  <p className="text-xs text-zinc-500">
+                    Are you an administrator?{" "}
+                    <Link
+                      href="/register-institution"
+                      className="font-medium text-zinc-700 underline-offset-2 hover:text-zinc-900 hover:underline transition-colors"
+                    >
+                      Register a new institution
+                    </Link>
+                  </p>
+                </div>
               </form>
 
               {/* Sandbox Access Box */}
@@ -212,9 +273,13 @@ export default function LoginPage() {
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Sandbox Environment Access
                 </h3>
+                <p className="mb-2 text-xs text-slate-500">
+                  <span className="font-medium text-slate-700">Institution Code:</span>{" "}
+                  <code className="rounded bg-slate-200 px-1.5 py-0.5 text-slate-800">demo2024</code>
+                </p>
                 <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
                   <p><span className="font-medium text-slate-900">Admin:</span> admin / adminPassword123</p>
-                  <p><span className="font-medium text-slate-900">Student:</span> student_alice / student123</p>
+                  <p><span className="font-medium text-slate-900">Student:</span> co_cse-2026-001 / student123</p>
                   <p><span className="font-medium text-slate-900">Teacher:</span> teacher_john / teacher123</p>
                   <p><span className="font-medium text-slate-900">Warden:</span> warden_mary / warden123</p>
                 </div>
@@ -227,4 +292,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

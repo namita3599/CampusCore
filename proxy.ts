@@ -134,7 +134,16 @@ export default withAuth(
       }
     }
 
-    return NextResponse.next();
+    const requestHeaders = new Headers(req.headers);
+    if (token && typeof token.institutionId === "string") {
+      requestHeaders.set("x-tenant-id", token.institutionId);
+    }
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
   },
   {
     callbacks: {

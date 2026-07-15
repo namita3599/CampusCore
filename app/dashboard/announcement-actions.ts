@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { getTenantPrisma } from "@/lib/prisma-tenant";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
@@ -11,15 +11,16 @@ export async function markAnnouncementAsRead(announcementId: number) {
     throw new Error("Unauthorized");
   }
 
+  const db = getTenantPrisma(session.user.institutionId);
   const userId = parseInt(session.user.id);
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
   });
   if (!user) {
     throw new Error("User not found");
   }
 
-  await prisma.announcementRead.upsert({
+  await db.announcementRead.upsert({
     where: {
       userId_announcementId: {
         userId: user.id,
@@ -42,15 +43,16 @@ export async function markAllAnnouncementsAsRead() {
     throw new Error("Unauthorized");
   }
 
+  const db = getTenantPrisma(session.user.institutionId);
   const userId = parseInt(session.user.id);
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
   });
   if (!user) {
     throw new Error("User not found");
   }
 
-  const unreadAnnouncements = await prisma.announcement.findMany({
+  const unreadAnnouncements = await db.announcement.findMany({
     where: {
       OR: [
         { targetRole: "ALL" },
@@ -65,7 +67,7 @@ export async function markAllAnnouncementsAsRead() {
   });
 
   if (unreadAnnouncements.length > 0) {
-    await prisma.announcementRead.createMany({
+    await db.announcementRead.createMany({
       data: unreadAnnouncements.map((ann) => ({
         userId: user.id,
         announcementId: ann.id,

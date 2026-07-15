@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { getTenantPrisma } from "@/lib/prisma-tenant";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -14,6 +14,8 @@ export async function createComplaint(formData: FormData) {
     throw new Error("Unauthorized. Only students can submit complaints.");
   }
 
+  const db = getTenantPrisma(session.user.institutionId);
+
   const userId = Number(session.user.id);
   const title = formData.get("title") as string;
   const description = formData.get("description") as string;
@@ -26,8 +28,8 @@ export async function createComplaint(formData: FormData) {
     throw new Error("Invalid complaint category.");
   }
 
-  // Find StudentProfile
-  const student = await prisma.studentProfile.findUnique({
+  // Find StudentProfile (tenant-scoped via db)
+  const student = await db.studentProfile.findUnique({
     where: { userId },
   });
   if (!student) throw new Error("Student profile not found.");
@@ -40,7 +42,7 @@ export async function createComplaint(formData: FormData) {
     subjectId = Number(subjectIdStr);
 
     // Verify enrollment
-    const enrollment = await prisma.studentSubject.findUnique({
+    const enrollment = await db.studentSubject.findUnique({
       where: {
         studentId_subjectId: {
           studentId: student.id,
@@ -52,8 +54,8 @@ export async function createComplaint(formData: FormData) {
       throw new Error("You can only submit complaints for courses you are enrolled in.");
     }
   } else if (category === "HOSTEL") {
-    // Retrieve the student's active room booking
-    const bookedRoom = await prisma.room.findFirst({
+    // Retrieve the student’s active room booking (tenant-scoped)
+    const bookedRoom = await db.room.findFirst({
       where: { bookedByUserId: userId },
     });
     if (!bookedRoom) {
@@ -63,7 +65,7 @@ export async function createComplaint(formData: FormData) {
   }
 
   try {
-    await prisma.complaint.create({
+    await db.complaint.create({
       data: {
         title: title.trim(),
         description: description.trim(),
@@ -90,6 +92,8 @@ export async function resolveComplaint(formData: FormData) {
     throw new Error("Unauthorized. Only teachers or wardens can resolve complaints.");
   }
 
+  const db = getTenantPrisma(session.user.institutionId);
+
   const complaintIdStr = formData.get("complaintId") as string;
   const resolution = formData.get("resolution") as string;
 
@@ -99,7 +103,7 @@ export async function resolveComplaint(formData: FormData) {
   const complaintId = Number(complaintIdStr);
 
   try {
-    await prisma.complaint.update({
+    await db.complaint.update({
       where: { id: complaintId },
       data: {
         status: "RESOLVED",

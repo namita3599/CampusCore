@@ -1,11 +1,28 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { getTenantPrisma } from "@/lib/prisma-tenant";
 import { Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "crypto";
 import nodemailer from "nodemailer";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
+/**
+ * Resolves the calling admin's institutionId from their session and returns
+ * a tenant-scoped Prisma client. Throws if the session is missing or invalid.
+ */
+async function getDb() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.institutionId) {
+    throw new Error("Unauthorized: no active institution session.");
+  }
+  return {
+    db: getTenantPrisma(session.user.institutionId),
+    institutionId: session.user.institutionId,
+  };
+}
 
 // ─── Create Student ──────────────────────────────────────────
 export async function createStudent(formData: FormData) {
@@ -33,18 +50,21 @@ export async function createStudent(formData: FormData) {
   const tempPassword = randomBytes(4).toString("hex");
   const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
-  await prisma.$transaction(async (tx) => {
-    const duplicateRoll = await tx.studentProfile.findFirst({ where: { rollNumber } });
+  const { db, institutionId } = await getDb();
+
+  await db.$transaction(async (tx: any) => {
+    const duplicateRoll = await tx.studentProfile.findFirst({ where: { institutionId, rollNumber } });
     if (duplicateRoll) throw new Error(`Roll number ${rollNumber} is already registered.`);
 
-    const duplicateUsername = await tx.user.findUnique({ where: { username } });
+    const duplicateUsername = await tx.user.findFirst({ where: { institutionId, username } });
     if (duplicateUsername) throw new Error(`Generated username ${username} already exists.`);
 
-    const duplicateEmail = await tx.user.findUnique({ where: { email } });
+    const duplicateEmail = await tx.user.findFirst({ where: { institutionId, email } });
     if (duplicateEmail) throw new Error(`Email ${email} is already registered.`);
 
     await tx.user.create({
       data: {
+        institutionId,
         username,
         email,
         hashedPassword,
@@ -52,6 +72,7 @@ export async function createStudent(formData: FormData) {
         forcePasswordChange: true,
         studentProfile: {
           create: {
+            institutionId,
             name,
             branch,
             rollNumber,
@@ -131,15 +152,18 @@ export async function createTeacher(formData: FormData) {
   const tempPassword = randomBytes(4).toString("hex");
   const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
-  await prisma.$transaction(async (tx) => {
-    const duplicateEmail = await tx.user.findUnique({ where: { email } });
+  const { db, institutionId } = await getDb();
+
+  await db.$transaction(async (tx: any) => {
+    const duplicateEmail = await tx.user.findFirst({ where: { institutionId, email } });
     if (duplicateEmail) throw new Error(`Email ${email} is already registered.`);
 
-    const duplicateUsername = await tx.user.findUnique({ where: { username } });
+    const duplicateUsername = await tx.user.findFirst({ where: { institutionId, username } });
     if (duplicateUsername) throw new Error(`Generated username ${username} already exists. Please try again.`);
 
     await tx.user.create({
       data: {
+        institutionId,
         username,
         email,
         hashedPassword,
@@ -147,6 +171,7 @@ export async function createTeacher(formData: FormData) {
         forcePasswordChange: true,
         teacherProfile: {
           create: {
+            institutionId,
             name,
             phone,
             ...(subjectId ? { subjects: { connect: [{ id: parseInt(subjectId) }] } } : {}),
@@ -213,15 +238,18 @@ export async function createWarden(formData: FormData) {
   const tempPassword = randomBytes(4).toString("hex");
   const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
-  await prisma.$transaction(async (tx) => {
-    const duplicateEmail = await tx.user.findUnique({ where: { email } });
+  const { db, institutionId } = await getDb();
+
+  await db.$transaction(async (tx: any) => {
+    const duplicateEmail = await tx.user.findFirst({ where: { institutionId, email } });
     if (duplicateEmail) throw new Error(`Email ${email} is already registered.`);
 
-    const duplicateUsername = await tx.user.findUnique({ where: { username } });
+    const duplicateUsername = await tx.user.findFirst({ where: { institutionId, username } });
     if (duplicateUsername) throw new Error(`Generated username ${username} already exists. Please try again.`);
 
     await tx.user.create({
       data: {
+        institutionId,
         username,
         email,
         hashedPassword,
@@ -229,6 +257,7 @@ export async function createWarden(formData: FormData) {
         forcePasswordChange: true,
         wardenProfile: {
           create: {
+            institutionId,
             name,
             phone,
             ...(hostelId ? { hostels: { connect: [{ id: parseInt(hostelId) }] } } : {}),
@@ -281,7 +310,8 @@ export async function createSubject(formData: FormData) {
   const name = formData.get("subjectName") as string;
   if (!name) throw new Error("Subject name is required.");
 
-  await prisma.subject.create({ data: { name } });
+  const { db } = await getDb();
+  await db.subject.create({ data: { name } });
   revalidatePath("/dashboard/admin");
 }
 
@@ -290,7 +320,8 @@ export async function createHostel(formData: FormData) {
   const name = formData.get("hostelName") as string;
   if (!name) throw new Error("Hostel name is required.");
 
-  await prisma.hostel.create({ data: { name } });
+  const { db } = await getDb();
+  await db.hostel.create({ data: { name } });
   revalidatePath("/dashboard/admin");
 }
 
@@ -299,7 +330,8 @@ export async function assignSubjectToTeacher(formData: FormData) {
   const teacherProfileId = parseInt(formData.get("teacherProfileId") as string);
   const subjectId = parseInt(formData.get("subjectId") as string);
 
-  await prisma.subject.update({
+  const { db } = await getDb();
+  await db.subject.update({
     where: { id: subjectId },
     data: { teacherId: teacherProfileId },
   });
@@ -312,7 +344,8 @@ export async function assignHostelToWarden(formData: FormData) {
   const wardenProfileId = parseInt(formData.get("wardenProfileId") as string);
   const hostelId = parseInt(formData.get("hostelId") as string);
 
-  await prisma.hostel.update({
+  const { db } = await getDb();
+  await db.hostel.update({
     where: { id: hostelId },
     data: { wardenId: wardenProfileId },
   });
@@ -325,7 +358,9 @@ export async function assignStudentToHostel(formData: FormData) {
   const studentId = parseInt(formData.get("studentId") as string);
   const hostelId = parseInt(formData.get("hostelId") as string);
 
-  await prisma.studentHostel.upsert({
+  // Junction table is not tenant-aware — use bare prisma (it only takes FKs)
+  const { db } = await getDb();
+  await db.studentHostel.upsert({
     where: { studentId_hostelId: { studentId, hostelId } },
     update: {},
     create: { studentId, hostelId },
@@ -347,7 +382,8 @@ export async function createAnnouncement(formData: FormData) {
   const validRoles = ["ALL", "STUDENT", "TEACHER", "WARDEN"];
   const finalRole = validRoles.includes(targetRole) ? targetRole : "ALL";
 
-  await prisma.announcement.create({
+  const { db } = await getDb();
+  await db.announcement.create({
     data: {
       title,
       content,
@@ -360,7 +396,8 @@ export async function createAnnouncement(formData: FormData) {
 
 // ─── Delete Announcement ──────────────────────────────────────
 export async function deleteAnnouncement(id: number) {
-  await prisma.announcement.delete({
+  const { db } = await getDb();
+  await db.announcement.delete({
     where: { id },
   });
 
@@ -378,14 +415,16 @@ export async function updateStudent(
     hostelId: number | null;
   }
 ) {
-  const profile = await prisma.studentProfile.findUnique({
+  const { db, institutionId } = await getDb();
+
+  const profile = await db.studentProfile.findUnique({
     where: { id: studentId },
     select: { userId: true },
   });
   if (!profile) throw new Error("Student not found.");
 
-  // Check email uniqueness excluding this user
-  const duplicateEmail = await prisma.user.findFirst({
+  // Check email uniqueness within this institution excluding this user
+  const duplicateEmail = await db.user.findFirst({
     where: {
       email: data.email,
       NOT: { id: profile.userId },
@@ -393,7 +432,7 @@ export async function updateStudent(
   });
   if (duplicateEmail) throw new Error(`Email ${data.email} is already in use.`);
 
-  await prisma.$transaction(async (tx) => {
+  await db.$transaction(async (tx: any) => {
     // Update User email
     await tx.user.update({
       where: { id: profile.userId },
@@ -410,7 +449,7 @@ export async function updateStudent(
       },
     });
 
-    // Update Hostel assignment
+    // Update Hostel assignment (junction table — pass institutionId for create)
     await tx.studentHostel.deleteMany({
       where: { studentId },
     });
@@ -431,7 +470,9 @@ export async function updateStudent(
 
 // ─── Delete Student ───────────────────────────────────────────
 export async function deleteStudent(studentId: number) {
-  const profile = await prisma.studentProfile.findUnique({
+  const { db } = await getDb();
+
+  const profile = await db.studentProfile.findUnique({
     where: { id: studentId },
     select: { userId: true, profilePictureUrl: true },
   });
@@ -449,7 +490,7 @@ export async function deleteStudent(studentId: number) {
         console.error("Failed to delete profile picture from Supabase:", err);
       }
     }
-    await prisma.$transaction(async (tx) => {
+    await db.$transaction(async (tx: any) => {
       // Clear room bookings and holds by this student and reset status to AVAILABLE
       await tx.room.updateMany({
         where: {
@@ -488,14 +529,16 @@ export async function updateTeacher(
     subjectIds: number[];
   }
 ) {
-  const profile = await prisma.teacherProfile.findUnique({
+  const { db } = await getDb();
+
+  const profile = await db.teacherProfile.findUnique({
     where: { id: teacherId },
     select: { userId: true },
   });
   if (!profile) throw new Error("Teacher not found.");
 
-  // Check username uniqueness
-  const duplicateUser = await prisma.user.findFirst({
+  // Check username uniqueness within this institution
+  const duplicateUser = await db.user.findFirst({
     where: {
       username: data.username,
       NOT: { id: profile.userId },
@@ -503,8 +546,8 @@ export async function updateTeacher(
   });
   if (duplicateUser) throw new Error(`Username ${data.username} is already taken.`);
 
-  // Check email uniqueness
-  const duplicateEmail = await prisma.user.findFirst({
+  // Check email uniqueness within this institution
+  const duplicateEmail = await db.user.findFirst({
     where: {
       email: data.email,
       NOT: { id: profile.userId },
@@ -512,7 +555,7 @@ export async function updateTeacher(
   });
   if (duplicateEmail) throw new Error(`Email ${data.email} is already in use.`);
 
-  await prisma.$transaction(async (tx) => {
+  await db.$transaction(async (tx: any) => {
     // Update User
     await tx.user.update({
       where: { id: profile.userId },
@@ -551,13 +594,15 @@ export async function updateTeacher(
 
 // ─── Delete Teacher ───────────────────────────────────────────
 export async function deleteTeacher(teacherId: number) {
-  const profile = await prisma.teacherProfile.findUnique({
+  const { db } = await getDb();
+
+  const profile = await db.teacherProfile.findUnique({
     where: { id: teacherId },
     select: { userId: true },
   });
 
   if (profile) {
-    await prisma.$transaction(async (tx) => {
+    await db.$transaction(async (tx: any) => {
       // Disconnect teacher from any subjects
       await tx.subject.updateMany({
         where: { teacherId },
@@ -586,14 +631,16 @@ export async function updateWarden(
     hostelIds: number[];
   }
 ) {
-  const profile = await prisma.wardenProfile.findUnique({
+  const { db } = await getDb();
+
+  const profile = await db.wardenProfile.findUnique({
     where: { id: wardenId },
     select: { userId: true },
   });
   if (!profile) throw new Error("Warden not found.");
 
-  // Check username uniqueness
-  const duplicateUser = await prisma.user.findFirst({
+  // Check username uniqueness within this institution
+  const duplicateUser = await db.user.findFirst({
     where: {
       username: data.username,
       NOT: { id: profile.userId },
@@ -601,8 +648,8 @@ export async function updateWarden(
   });
   if (duplicateUser) throw new Error(`Username ${data.username} is already taken.`);
 
-  // Check email uniqueness
-  const duplicateEmail = await prisma.user.findFirst({
+  // Check email uniqueness within this institution
+  const duplicateEmail = await db.user.findFirst({
     where: {
       email: data.email,
       NOT: { id: profile.userId },
@@ -610,7 +657,7 @@ export async function updateWarden(
   });
   if (duplicateEmail) throw new Error(`Email ${data.email} is already in use.`);
 
-  await prisma.$transaction(async (tx) => {
+  await db.$transaction(async (tx: any) => {
     // Update User
     await tx.user.update({
       where: { id: profile.userId },
@@ -649,13 +696,15 @@ export async function updateWarden(
 
 // ─── Delete Warden ────────────────────────────────────────────
 export async function deleteWarden(wardenId: number) {
-  const profile = await prisma.wardenProfile.findUnique({
+  const { db } = await getDb();
+
+  const profile = await db.wardenProfile.findUnique({
     where: { id: wardenId },
     select: { userId: true },
   });
 
   if (profile) {
-    await prisma.$transaction(async (tx) => {
+    await db.$transaction(async (tx: any) => {
       // Disconnect warden from any hostels
       await tx.hostel.updateMany({
         where: { wardenId },
@@ -681,7 +730,8 @@ export async function updateSubject(
     teacherId: number | null;
   }
 ) {
-  await prisma.subject.update({
+  const { db } = await getDb();
+  await db.subject.update({
     where: { id: subjectId },
     data: {
       name: data.name,
@@ -695,7 +745,8 @@ export async function updateSubject(
 
 // ─── Delete Subject ───────────────────────────────────────────
 export async function deleteSubject(subjectId: number) {
-  await prisma.$transaction(async (tx) => {
+  const { db } = await getDb();
+  await db.$transaction(async (tx: any) => {
     // Delete all StudentSubject links
     await tx.studentSubject.deleteMany({
       where: { subjectId },
@@ -719,7 +770,8 @@ export async function updateHostel(
     wardenId: number | null;
   }
 ) {
-  await prisma.hostel.update({
+  const { db } = await getDb();
+  await db.hostel.update({
     where: { id: hostelId },
     data: {
       name: data.name,
@@ -733,7 +785,8 @@ export async function updateHostel(
 
 // ─── Delete Hostel ────────────────────────────────────────────
 export async function deleteHostel(hostelId: number) {
-  await prisma.$transaction(async (tx) => {
+  const { db } = await getDb();
+  await db.$transaction(async (tx: any) => {
     // Delete StudentHostel links
     await tx.studentHostel.deleteMany({
       where: { hostelId },
@@ -755,34 +808,52 @@ export async function deleteHostel(hostelId: number) {
 }
 
 // ─── System Settings: Course Registration Lock ───────────────
+// SystemSettings is now per-tenant. We use findFirst({ where: { institutionId } })
+// instead of the old singleton findUnique({ where: { id: 1 } }).
 export async function getCourseRegistrationLocked(): Promise<boolean> {
-  const settings = await prisma.systemSettings.findUnique({ where: { id: 1 } });
+  const { db, institutionId } = await getDb();
+  const settings = await db.systemSettings.findFirst({ where: { institutionId } });
   return settings?.courseRegistrationLocked ?? false;
 }
 
 export async function toggleCourseRegistrationLock(locked: boolean) {
-  await prisma.systemSettings.upsert({
-    where: { id: 1 },
-    update: { courseRegistrationLocked: locked },
-    create: { id: 1, courseRegistrationLocked: locked },
-  });
+  const { db, institutionId } = await getDb();
+  const existing = await db.systemSettings.findFirst({ where: { institutionId } });
+  if (existing) {
+    await db.systemSettings.update({
+      where: { id: existing.id },
+      data: { courseRegistrationLocked: locked },
+    });
+  } else {
+    await db.systemSettings.create({
+      data: { institutionId, courseRegistrationLocked: locked, tuitionPaymentLocked: false },
+    });
+  }
   revalidatePath("/dashboard/admin/subjects");
   revalidatePath("/dashboard/student/register");
 }
 
 export async function toggleTuitionPaymentLock(locked: boolean) {
-  await prisma.systemSettings.upsert({
-    where: { id: 1 },
-    update: { tuitionPaymentLocked: locked },
-    create: { id: 1, tuitionPaymentLocked: locked },
-  });
+  const { db, institutionId } = await getDb();
+  const existing = await db.systemSettings.findFirst({ where: { institutionId } });
+  if (existing) {
+    await db.systemSettings.update({
+      where: { id: existing.id },
+      data: { tuitionPaymentLocked: locked },
+    });
+  } else {
+    await db.systemSettings.create({
+      data: { institutionId, courseRegistrationLocked: false, tuitionPaymentLocked: locked },
+    });
+  }
   revalidatePath("/dashboard/admin/subjects");
   revalidatePath("/dashboard/student/fees");
 }
 
 // ─── Fee Record Actions ───────────────────────────────────────────
 export async function markFeePaid(feeRecordId: number) {
-  await prisma.feeRecord.update({
+  const { db } = await getDb();
+  await db.feeRecord.update({
     where: { id: feeRecordId },
     data: { status: "PAID", paidAt: new Date() },
   });
@@ -790,7 +861,8 @@ export async function markFeePaid(feeRecordId: number) {
 }
 
 export async function resetFeeUnpaid(feeRecordId: number) {
-  await prisma.feeRecord.update({
+  const { db } = await getDb();
+  await db.feeRecord.update({
     where: { id: feeRecordId },
     data: { status: "UNPAID", paidAt: null },
   });
@@ -803,7 +875,8 @@ export async function updateBatchFeeAmount(
   amount: number,
   term: string
 ) {
-  await prisma.feeRecord.updateMany({
+  const { db } = await getDb();
+  await db.feeRecord.updateMany({
     where: { admissionYear, type: feeType as any, term },
     data: { amount },
   });
@@ -815,18 +888,21 @@ export async function bulkResetFeesToUnpaid(
   term: string,
   defaultAmount: number
 ) {
-  const students = await prisma.studentProfile.findMany({
+  const { db, institutionId } = await getDb();
+  // findMany is already tenant-scoped via getTenantPrisma
+  const students = await db.studentProfile.findMany({
     select: { id: true, yearOfAdmission: true },
   });
 
   await Promise.all(
     students.map((s) =>
-      prisma.feeRecord.upsert({
+      db.feeRecord.upsert({
         where: {
           studentId_type_term: { studentId: s.id, type: feeType as any, term },
         },
         update: { status: "UNPAID", paidAt: null },
         create: {
+          institutionId,
           studentId: s.id,
           type: feeType as any,
           status: "UNPAID",

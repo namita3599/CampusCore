@@ -117,7 +117,11 @@ export default function ForgotPasswordPage() {
     }
 
     setFpLoading(true);
-    const res = await verifyOtpAndResetPassword(fpEmail.trim(), fpOtp.trim(), fpNewPassword);
+    const res = await verifyOtpAndResetPassword(
+      fpEmail.trim(),
+      fpOtp.trim(),
+      fpNewPassword
+    );
     setFpLoading(false);
 
     if (!res.success) {

@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getTenantPrisma } from "@/lib/prisma-tenant";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 function toCSV(headers: string[], rows: (string | number | boolean | null | undefined)[][]): string {
@@ -19,11 +19,12 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
+  const db = getTenantPrisma(session.user.institutionId);
   const { searchParams } = new URL(req.url);
   const report = searchParams.get("report"); // "defaulters" | "orphans"
 
   if (report === "defaulters") {
-    const defaulters = await prisma.studentProfile.findMany({
+    const defaulters = await db.studentProfile.findMany({
       where: { OR: [{ tuitionPaid: false }, { hostelPaid: false }] },
       select: {
         name: true,
@@ -64,11 +65,11 @@ export async function GET(req: NextRequest) {
 
   if (report === "orphans") {
     const [subjectsWithoutTeacher, hostelsWithoutWarden] = await Promise.all([
-      prisma.subject.findMany({
+      db.subject.findMany({
         where: { teacherId: null },
         select: { name: true },
       }),
-      prisma.hostel.findMany({
+      db.hostel.findMany({
         where: { wardenId: null },
         select: { name: true },
       }),
