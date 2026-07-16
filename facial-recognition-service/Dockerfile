@@ -5,15 +5,16 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies required for compiling CMake, dlib, and OpenCV libraries
+# CRITICAL FIX: Restrict CMake to 1 core so dlib compilation doesn't crash cloud builders (OOM)
+ENV CMAKE_BUILD_PARALLEL_LEVEL=1
+
+# Install system dependencies required for compiling CMake and dlib
+# Note: Removed x11 and gtk as they are for GUI windows, which a headless FastAPI server doesn't need
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     libopenblas-dev \
     liblapack-dev \
-    libx11-dev \
-    libgtk-3-dev \
-    libboost-python-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory inside the container
@@ -22,7 +23,7 @@ WORKDIR /app
 # Copy requirements file first to leverage Docker build cache
 COPY requirements.txt .
 
-# Install dependencies (dlib compiles during this step)
+# Install dependencies (dlib compiles during this step, safely on 1 core)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the remaining service code
