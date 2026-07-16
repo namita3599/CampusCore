@@ -43,12 +43,32 @@ export async function uploadProfilePicture(formData: FormData) {
 
     const publicUrl = urlData.publicUrl;
 
+    // Fetch existing student profile to get the old profile picture URL
+    const currentStudent = await prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      select: { profilePictureUrl: true },
+    });
+
     // Update database
     const updatedStudent = await prisma.studentProfile.update({
       where: { id: studentId },
       data: { profilePictureUrl: publicUrl },
       select: { institutionId: true },
     });
+
+    // Delete the old profile picture from Supabase storage if it exists
+    if (currentStudent?.profilePictureUrl) {
+      try {
+        const parts = currentStudent.profilePictureUrl.split("/profile-pictures/");
+        if (parts.length > 1) {
+          const oldFileName = parts[1];
+          await supabase.storage.from("profile-pictures").remove([oldFileName]);
+          console.log(`Deleted old profile picture: ${oldFileName}`);
+        }
+      } catch (err) {
+        console.error("Failed to delete old profile picture from storage:", err);
+      }
+    }
 
     const institutionId = updatedStudent.institutionId;
     if (!institutionId) {

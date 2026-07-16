@@ -171,11 +171,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow the Next.js dev server (port 3000) and production domain to call this API.
+# Allow the Next.js frontend to call this API.
+# We read origins from an environment variable ALLOWED_ORIGINS, defaulting to "*" for maximum compatibility.
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "*")
+allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://your-production-domain.com"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=False if "*" in allowed_origins else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
