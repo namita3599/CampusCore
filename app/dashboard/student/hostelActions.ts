@@ -157,7 +157,7 @@ export async function bookRoom(
     }
 
     // ── Pessimistic Locking Transaction ──────────────────────────────────────
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // ── STEP 1: SELECT ... FOR UPDATE (Acquire the Mutex) ──────────────────
       //
       // PostgreSQL will:

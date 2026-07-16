@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       console.log(`Webhook Order Paid Event details: Order ID = ${razorpayOrderId}`);
 
       // 4. Run database updates atomically inside a transaction
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         // Find local transaction
         const dbTransaction = await tx.transaction.findUnique({
           where: { razorpayOrderId },

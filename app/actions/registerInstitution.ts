@@ -121,7 +121,7 @@ export async function registerInstitution(
 
   // ── 5. Atomic transaction: create Institution + Admin User ────────────────
   try {
-    const { institution } = await prisma.$transaction(async (tx) => {
+    const { institution } = await prisma.$transaction(async (tx: any) => {
       // 5a. Create the Institution (tenant) row
       const institution = await tx.institution.create({
         data: {

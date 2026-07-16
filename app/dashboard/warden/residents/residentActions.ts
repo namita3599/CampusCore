@@ -64,7 +64,7 @@ export async function changeStudentRoom(
     if (hostelIds.length === 0)
       return { success: false, message: "You have no hostels assigned." };
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // ── STEP 1: SELECT ... FOR UPDATE — acquire exclusive row lock ──────────
       const rows = await tx.$queryRaw<LockedRoomRow[]>`
         SELECT id, status, "hostelId"
@@ -176,7 +176,7 @@ export async function removeStudentFromHostel(
     await assertWarden(wardenUserId);
     const hostelIds = await getWardenHostelIds(wardenUserId);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Free the room — scoped to warden's hostels only
       await tx.room.updateMany({
         where: {

@@ -149,7 +149,7 @@ export async function verifyPayment(
   }
 
   // 3. Atomically update database status inside a single transaction
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const transaction = await tx.transaction.findFirst({
       where: { razorpayOrderId },
     });
