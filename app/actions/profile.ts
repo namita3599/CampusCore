@@ -51,10 +51,16 @@ export async function uploadProfilePicture(formData: FormData) {
     const publicUrl = urlData.publicUrl;
 
     // Update database
-    await prisma.studentProfile.update({
+    const updatedStudent = await prisma.studentProfile.update({
       where: { id: studentId },
       data: { profilePictureUrl: publicUrl },
+      select: { institutionId: true },
     });
+
+    const institutionId = updatedStudent.institutionId;
+    if (!institutionId) {
+      throw new Error("Student's institution could not be resolved.");
+    }
 
     // Call Python microservice to process the profile photo and save the face embedding
     try {
@@ -65,6 +71,7 @@ export async function uploadProfilePicture(formData: FormData) {
         body: JSON.stringify({
           studentId,
           photoUrl: publicUrl,
+          institutionId,
         }),
       });
 

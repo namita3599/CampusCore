@@ -68,5 +68,5 @@ export default async function TeacherAttendancePage() {
     })),
   }));
 
-  return <TeacherAttendance subjects={subjects} />;
+  return <TeacherAttendance subjects={subjects} institutionId={session.user.institutionId} />;
 }

@@ -65,6 +65,7 @@ interface SubjectWithStudents {
 interface TeacherAttendanceProps {
   /** Teacher's own subjects + their enrolled students, from the DB. */
   subjects: SubjectWithStudents[];
+  institutionId: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,9 +91,10 @@ function formatDate(iso: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 // Real API call to the Python FastAPI microservice
 // ─────────────────────────────────────────────────────────────────────────────
-async function callAIService(file: File): Promise<number[]> {
+async function callAIService(file: File, institutionId: string): Promise<number[]> {
   const formData = new FormData();
   formData.append("photo", file);
+  formData.append("institutionId", institutionId);
 
   const response = await fetch(`${PYTHON_SERVICE_URL}/mark-group-attendance`, {
     method: "POST",
@@ -121,7 +123,7 @@ type UIState = "setup" | "loading" | "review" | "saved";
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
-export default function TeacherAttendance({ subjects }: TeacherAttendanceProps) {
+export default function TeacherAttendance({ subjects, institutionId }: TeacherAttendanceProps) {
   // ── Form state ──────────────────────────────────────────────────────────────
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(todayString());
@@ -186,7 +188,7 @@ export default function TeacherAttendance({ subjects }: TeacherAttendanceProps) 
     setErrorMsg(null);
 
     try {
-      const aiPresentIds = await callAIService(photoFile);
+      const aiPresentIds = await callAIService(photoFile, institutionId);
 
       // Pre-check students the AI matched; leave others unchecked
       const initialMap: Record<number, boolean> = {};
