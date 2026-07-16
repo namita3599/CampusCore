@@ -255,17 +255,6 @@ export default function LoginPage() {
                   {loading ? "Authenticating…" : "Sign in to Dashboard"}
                 </Button>
 
-                <div className="text-center mt-4">
-                  <p className="text-xs text-zinc-500">
-                    Are you an administrator?{" "}
-                    <Link
-                      href="/register-institution"
-                      className="font-medium text-zinc-700 underline-offset-2 hover:text-zinc-900 hover:underline transition-colors"
-                    >
-                      Register a new institution
-                    </Link>
-                  </p>
-                </div>
               </form>
 
               {/* Sandbox Access Box */}

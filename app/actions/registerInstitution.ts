@@ -41,6 +41,8 @@ export interface RegisterInstitutionInput {
   adminUsername: string;
   /** Plain-text password — hashed with bcrypt before storage */
   adminPassword: string;
+  /** Master password to authenticate the registration */
+  masterPassword: string;
 }
 
 export type RegisterInstitutionResult =
@@ -66,7 +68,17 @@ export async function registerInstitution(
   input: RegisterInstitutionInput
 ): Promise<RegisterInstitutionResult> {
   // ── 1. Validate inputs ─────────────────────────────────────────────────────
-  const { institutionName, desiredCode, adminUsername, adminPassword } = input;
+  const { institutionName, desiredCode, adminUsername, adminPassword, masterPassword } = input;
+
+  const expectedInvitePassword = process.env.INVITE_PASSWORD;
+  if (!expectedInvitePassword) {
+    console.error("INVITE_PASSWORD is not set in environment variables.");
+    return { success: false, error: "Registration is temporarily disabled." };
+  }
+
+  if (masterPassword !== expectedInvitePassword) {
+    return { success: false, error: "Invalid master password." };
+  }
 
   if (!institutionName?.trim()) {
     return { success: false, error: "Institution name is required." };
@@ -160,3 +172,13 @@ export async function registerInstitution(
     };
   }
 }
+
+export async function verifyMasterPassword(password: string): Promise<boolean> {
+  const expectedInvitePassword = process.env.INVITE_PASSWORD;
+  if (!expectedInvitePassword) {
+    console.error("INVITE_PASSWORD is not set in environment variables.");
+    return false;
+  }
+  return password === expectedInvitePassword;
+}
+
