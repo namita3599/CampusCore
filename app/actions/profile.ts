@@ -1,6 +1,6 @@
+
 "use server";
 
-import sharp from "sharp";
 import { supabase } from "@/lib/supabase";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
@@ -20,22 +20,15 @@ export async function uploadProfilePicture(formData: FormData) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Compress and resize using sharp
-    const optimizedBuffer = await sharp(buffer)
-      .resize(800, 800, {
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .webp({ quality: 80 })
-      .toBuffer();
+    // Get original extension
+    const originalExt = file.name.split(".").pop() || "png";
+    const fileName = `student-${studentId}-${Date.now()}.${originalExt}`;
 
-    const fileName = `student-${studentId}-${Date.now()}.webp`;
-
-    // Upload to Supabase storage bucket root
+    // Upload to Supabase storage bucket root (uploading original file directly)
     const { error: uploadError } = await supabase.storage
       .from("profile-pictures")
-      .upload(fileName, optimizedBuffer, {
-        contentType: "image/webp",
+      .upload(fileName, buffer, {
+        contentType: file.type,
         upsert: true,
       });
 
