@@ -41,6 +41,7 @@ import io
 import os
 import asyncio
 import logging
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
@@ -88,12 +89,21 @@ DATABASE_URL: str = os.environ.get(
 REDIS_URL: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 # Rate-limiter constants
-RATE_LIMIT_MAX_REQUESTS: int = 3   # max requests per window
-RATE_LIMIT_WINDOW_SECONDS: int = 60  # rolling window in seconds
+# Override via env vars for local dev (e.g. RATE_LIMIT_MAX_REQUESTS=1000)
+# to avoid the 3-req/60s cap that blocks localhost testing where every
+# request comes from the same IP (127.0.0.1).
+RATE_LIMIT_MAX_REQUESTS: int = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "3"))
+RATE_LIMIT_WINDOW_SECONDS: int = int(os.environ.get("RATE_LIMIT_WINDOW_SECONDS", "60"))
 
 # pgvector cosine-distance threshold – faces with distance < this are matched
 # A threshold of 0.18 perfectly correlates to a standard Euclidean distance of 0.6.
 VECTOR_DISTANCE_THRESHOLD: float = 0.18
+
+# Face detection upsample factor.
+# upsample=1 → fast (~20-30 s on a laptop). Default for local dev.
+# upsample=2 → slower but catches smaller far-away faces (~90-120 s).
+# Set FACE_UPSAMPLE_TIMES=2 in production on a powerful server.
+FACE_UPSAMPLE_TIMES: int = int(os.environ.get("FACE_UPSAMPLE_TIMES", "1"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # App-level shared resources
@@ -103,6 +113,13 @@ VECTOR_DISTANCE_THRESHOLD: float = 0.18
 
 _db_pool: asyncpg.Pool | None = None
 _redis_client: aioredis.Redis | None = None
+# ProcessPoolExecutor for dlib face-recognition work.
+# Using a *process* pool (not threads) means:
+#   • dlib jobs run in a separate OS process — true parallelism, no GIL.
+#   • If a request is dropped, the worker process can be replaced on next
+#     startup; zombie thread pool tasks can no longer block future requests.
+#   • max_workers=1 keeps memory predictable on laptop hardware.
+_process_executor: ProcessPoolExecutor | None = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -115,7 +132,13 @@ async def lifespan(app: FastAPI):
     We open the Postgres connection pool and the Redis connection here so
     they are shared across ALL incoming requests without reconnecting.
     """
-    global _db_pool, _redis_client
+    global _db_pool, _redis_client, _process_executor
+
+    # ── Start the face-recognition process pool ───────────────────────────────
+    # max_workers=1: one dlib worker process. Keeps memory usage predictable.
+    # Increase to 2 on machines with ≥8 GB RAM if you need more throughput.
+    _process_executor = ProcessPoolExecutor(max_workers=1)
+    logger.info("ProcessPoolExecutor (face-recognition) ready ✔")
 
     # ── Open Postgres connection pool ─────────────────────────────────────────
     logger.info("Connecting to PostgreSQL …")
@@ -152,6 +175,8 @@ async def lifespan(app: FastAPI):
 
     # ── Graceful shutdown ─────────────────────────────────────────────────────
     logger.info("Shutting down – closing connections …")
+    if _process_executor is not None:
+        _process_executor.shutdown(wait=False, cancel_futures=True)
     await _db_pool.close()
     if _redis_client is not None:
         await _redis_client.aclose()
@@ -329,10 +354,12 @@ def _extract_all_encodings_from_bytes(image_bytes: bytes) -> list[np.ndarray]:
     """
     rgb_image = _load_robust_rgb_image(image_bytes)
 
-    # CRITICAL FIX: upsample=2 mathematically doubles the resolution of the image 
-    # before the HOG model scans it. This allows the AI to catch faces that are 
-    # seated far back in the classroom.
-    face_locations = face_recognition.face_locations(rgb_image, number_of_times_to_upsample=2, model="hog")
+    # Upsample factor controls speed vs. detection range trade-off:
+    # upsample=1 (default, ~20-30 s) is fast enough for most classrooms.
+    # upsample=2 (~90-120 s) catches smaller far-away faces but risks
+    # blocking the uvicorn worker and causing timeout errors on slow machines.
+    # Override via FACE_UPSAMPLE_TIMES env var.
+    face_locations = face_recognition.face_locations(rgb_image, number_of_times_to_upsample=FACE_UPSAMPLE_TIMES, model="hog")
     
     # Generate the 128D mathematical vectors for the boxed locations
     encodings = face_recognition.face_encodings(rgb_image, known_face_locations=face_locations, num_jitters=1, model="large")
@@ -360,7 +387,7 @@ async def process_student_photo(
 
     loop = asyncio.get_running_loop()
     embedding: list[float] = await loop.run_in_executor(
-        None,
+        _process_executor,
         _bytes_to_face_embedding,
         image_bytes,
     )
@@ -436,7 +463,7 @@ async def mark_group_attendance(
 
     loop = asyncio.get_running_loop()
     group_encodings: list[np.ndarray] = await loop.run_in_executor(
-        None,
+        _process_executor,
         _extract_all_encodings_from_bytes,
         image_bytes,
     )

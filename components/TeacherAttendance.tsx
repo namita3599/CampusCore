@@ -19,14 +19,18 @@ const PYTHON_SERVICE_URL =
  *               The roster only shows students enrolled in the selected subject.
  *
  * UI Flow:
- *  1. SETUP   – Select subject, pick a date (defaults to today), drop photo.
- *  2. LOADING – Photo sent to Python AI; animated spinner.
- *  3. REVIEW  – Roster of enrolled students; AI-detected = pre-checked.
+ *  1. SETUP   – Select subject, pick a date, upload 1-N group photos.
+ *  2. LOADING – All photos sent to Python AI in parallel; per-photo progress.
+ *  3. REVIEW  – Roster of enrolled students; union of all AI detections = present.
  *               Teacher can manually override any checkbox.
  *  4. SAVED   – Confirmation screen.
  *
+ * Multi-photo union rule:
+ *   If a student is detected as PRESENT in ANY photo they stay PRESENT —
+ *   absence in one photo never overrides a detection in another photo.
+ *
  * API:
- *   POST http://localhost:8000/mark-group-attendance  ← Python AI
+ *   POST http://localhost:8000/mark-group-attendance  ← Python AI (one call per photo)
  *   POST /api/attendance                              ← Next.js save route
  * ============================================================================
  */
@@ -39,7 +43,9 @@ import {
   Camera,
   CheckCircle2,
   ChevronDown,
+  Images,
   Loader2,
+  Plus,
   Save,
   Upload,
   UserCheck,
@@ -66,6 +72,14 @@ interface TeacherAttendanceProps {
   /** Teacher's own subjects + their enrolled students, from the DB. */
   subjects: SubjectWithStudents[];
   institutionId: string;
+}
+
+/** Per-photo processing status shown during the loading screen */
+type PhotoStatus = "pending" | "processing" | "done" | "error";
+
+interface PhotoEntry {
+  file: File;
+  previewUrl: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,11 +110,33 @@ async function callAIService(file: File, institutionId: string): Promise<number[
   formData.append("photo", file);
   formData.append("institutionId", institutionId);
 
-  const response = await fetch(`${PYTHON_SERVICE_URL}/mark-group-attendance`, {
-    method: "POST",
-    // Do NOT set Content-Type — browser sets the multipart boundary automatically.
-    body: formData,
-  });
+  // Face recognition is CPU-intensive — allow up to 3 minutes on slow machines.
+  // upsample=1 (the new default) typically finishes in 20-30 s on a laptop.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 180_000);
+
+  let response: Response;
+  try {
+    response = await fetch(`${PYTHON_SERVICE_URL}/mark-group-attendance`, {
+      method: "POST",
+      // Do NOT set Content-Type — browser sets the multipart boundary automatically.
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(
+        "The AI service took too long to respond (> 3 min). " +
+        "Try a smaller/lower-resolution photo, or restart the Python service."
+      );
+    }
+    throw new Error(
+      `Could not reach the AI service at ${PYTHON_SERVICE_URL}. ` +
+      "Make sure the Python service is running (npm run dev starts it automatically)."
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     let detail = `AI service responded with HTTP ${response.status}`;
@@ -127,14 +163,17 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
   // ── Form state ──────────────────────────────────────────────────────────────
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(todayString());
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  /** List of uploaded photos (file + object-URL preview). */
+  const [photos, setPhotos] = useState<PhotoEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [subjectDropdownOpen, setSubjectDropdownOpen] = useState(false);
 
   // ── UI state machine ────────────────────────────────────────────────────────
   const [uiState, setUiState] = useState<UIState>("setup");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // ── Per-photo processing statuses (shown during loading screen) ─────────────
+  const [photoStatuses, setPhotoStatuses] = useState<PhotoStatus[]>([]);
 
   // ── Attendance map: studentId → boolean ────────────────────────────────────
   const [attendanceMap, setAttendanceMap] = useState<Record<number, boolean>>({});
@@ -143,7 +182,6 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
 
   // ── Derived values ──────────────────────────────────────────────────────────
   const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
-  // Show only students enrolled in the selected subject
   const enrolledStudents: Student[] = selectedSubject?.students ?? [];
   const presentCount = Object.values(attendanceMap).filter(Boolean).length;
   const absentCount = enrolledStudents.length - presentCount;
@@ -151,57 +189,116 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
   // ─────────────────────────────────────────────────────────────────────────
   // File handling
   // ─────────────────────────────────────────────────────────────────────────
-  const handleFileSelect = useCallback((file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setErrorMsg("Please upload an image file (JPEG, PNG, WebP).");
-      return;
+
+  /** Validate and append new files, ignoring duplicates (by name+size). */
+  const handleFilesAdded = useCallback((incoming: FileList | File[]) => {
+    const files = Array.from(incoming);
+    let skipped = 0;
+
+    setPhotos((prev) => {
+      const existingKeys = new Set(prev.map((p) => `${p.file.name}-${p.file.size}`));
+      const toAdd: PhotoEntry[] = [];
+
+      for (const file of files) {
+        if (!file.type.startsWith("image/")) { skipped++; continue; }
+        const key = `${file.name}-${file.size}`;
+        if (existingKeys.has(key)) continue; // already in list
+        toAdd.push({ file, previewUrl: URL.createObjectURL(file) });
+        existingKeys.add(key);
+      }
+
+      return [...prev, ...toAdd];
+    });
+
+    if (skipped > 0) {
+      setErrorMsg(`${skipped} file(s) skipped — only JPEG, PNG, and WebP images are accepted.`);
+    } else {
+      setErrorMsg(null);
     }
-    setPhotoFile(file);
-    setPhotoPreviewUrl(URL.createObjectURL(file));
-    setErrorMsg(null);
   }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       setIsDragging(false);
-      const file = e.dataTransfer.files?.[0];
-      if (file) handleFileSelect(file);
+      if (e.dataTransfer.files?.length) handleFilesAdded(e.dataTransfer.files);
     },
-    [handleFileSelect],
+    [handleFilesAdded],
   );
 
-  const handleRemovePhoto = () => {
-    setPhotoFile(null);
-    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-    setPhotoPreviewUrl(null);
+  /** Remove a single photo by index, revoking its object URL. */
+  const handleRemovePhoto = (index: number) => {
+    setPhotos((prev) => {
+      URL.revokeObjectURL(prev[index].previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  /** Remove all photos and reset file input. */
+  const handleClearAll = () => {
+    setPhotos((prev) => { prev.forEach((p) => URL.revokeObjectURL(p.previewUrl)); return []; });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Submit to AI
+  // Submit to AI — photos processed one at a time, union-merge results
   // ─────────────────────────────────────────────────────────────────────────
   const handleAnalyse = async () => {
-    if (!selectedSubjectId || !photoFile) return;
+    if (!selectedSubjectId || photos.length === 0) return;
 
     setUiState("loading");
     setErrorMsg(null);
 
-    try {
-      const aiPresentIds = await callAIService(photoFile, institutionId);
+    // ── Process photos sequentially ──────────────────────────────────────────
+    // Face recognition is CPU-bound on the Python side — running two photos in
+    // parallel just doubles memory usage and crashes the single uvicorn worker.
+    // Sequential processing is more reliable and still shows per-photo progress.
+    const unionPresentIds = new Set<number>();
+    const errors: string[] = [];
+    const finalStatuses: PhotoStatus[] = photos.map(() => "pending");
+    setPhotoStatuses([...finalStatuses]);
 
-      // Pre-check students the AI matched; leave others unchecked
-      const initialMap: Record<number, boolean> = {};
-      for (const student of enrolledStudents) {
-        initialMap[student.id] = aiPresentIds.includes(student.id);
+    for (let idx = 0; idx < photos.length; idx++) {
+      const entry = photos[idx];
+
+      // Mark current photo as processing
+      finalStatuses[idx] = "processing";
+      setPhotoStatuses([...finalStatuses]);
+
+      try {
+        const ids = await callAIService(entry.file, institutionId);
+        ids.forEach((id) => unionPresentIds.add(id));
+        finalStatuses[idx] = "done";
+      } catch (err) {
+        errors.push(`Photo ${idx + 1}: ${err instanceof Error ? err.message : "Failed"}`);
+        finalStatuses[idx] = "error";
       }
-      setAttendanceMap(initialMap);
-      setUiState("review");
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to analyse photo.");
-      setUiState("setup");
+
+      setPhotoStatuses([...finalStatuses]);
     }
+
+    // If ALL photos failed, go back to setup with an error
+    if (errors.length === photos.length) {
+      setErrorMsg(errors[0] ?? "All photos failed to analyse.");
+      setUiState("setup");
+      return;
+    }
+
+    // Partial success is fine — build the attendance map from the union
+    if (errors.length > 0) {
+      setErrorMsg(`${errors.length} photo(s) could not be analysed and were skipped.`);
+    }
+
+    // Pre-check students detected in ANY photo; leave others unchecked
+    const initialMap: Record<number, boolean> = {};
+    for (const student of enrolledStudents) {
+      initialMap[student.id] = unionPresentIds.has(student.id);
+    }
+    setAttendanceMap(initialMap);
+    setUiState("review");
   };
+
 
   // ─────────────────────────────────────────────────────────────────────────
   // Save to database via Next.js API route
@@ -229,7 +326,6 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
         throw new Error(err.error ?? `Save failed: HTTP ${res.status}`);
       }
     } catch (err) {
-      // Surface save errors in the error banner but still complete the UI flow
       console.error("[TeacherAttendance] save error:", err);
       setErrorMsg(err instanceof Error ? err.message : "Failed to save attendance.");
     }
@@ -244,12 +340,13 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
     setUiState("setup");
     setSelectedSubjectId(null);
     setSelectedDate(todayString());
-    handleRemovePhoto();
+    handleClearAll();
     setAttendanceMap({});
+    setPhotoStatuses([]);
     setErrorMsg(null);
   };
 
-  const canSubmit = selectedSubjectId !== null && photoFile !== null && selectedDate !== "";
+  const canSubmit = selectedSubjectId !== null && photos.length > 0 && selectedDate !== "";
 
   // ─────────────────────────────────────────────────────────────────────────
   // Empty-state: teacher has no subjects assigned
@@ -287,7 +384,7 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
               AI Attendance
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Upload a group photo and let AI mark attendance instantly.
+              Upload one or more group photos — AI marks attendance from all of them at once.
             </p>
           </div>
         </div>
@@ -382,31 +479,31 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
               </div>
             </div>
 
-            {/* ── Photo Dropzone ───────────────────────────────────────────── */}
+            {/* ── Photo Upload Zone ─────────────────────────────────────────── */}
             <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
-                Group Photo
-              </label>
-
-              {photoPreviewUrl ? (
-                <div className="relative rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photoPreviewUrl}
-                    alt="Group photo preview"
-                    className="w-full max-h-64 object-cover"
-                  />
+              {/* Header row */}
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                  <Images className="w-3.5 h-3.5" />
+                  Group Photos
+                  {photos.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold tabular-nums">
+                      {photos.length}
+                    </span>
+                  )}
+                </label>
+                {photos.length > 1 && (
                   <button
-                    onClick={handleRemovePhoto}
-                    className="absolute top-3 right-3 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-colors cursor-pointer"
+                    onClick={handleClearAll}
+                    className="text-xs text-zinc-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors cursor-pointer"
                   >
-                    <X className="w-4 h-4" />
+                    Clear all
                   </button>
-                  <div className="absolute bottom-3 left-3 px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-medium">
-                    {photoFile?.name}
-                  </div>
-                </div>
-              ) : (
+                )}
+              </div>
+
+              {photos.length === 0 ? (
+                /* ── Empty drop zone ── */
                 <div
                   onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                   onDragLeave={() => setIsDragging(false)}
@@ -423,20 +520,79 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                      Drop photo here or{" "}
+                      Drop photos here or{" "}
                       <span className="text-indigo-600 dark:text-indigo-400">browse</span>
                     </p>
                     <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                      JPEG, PNG, WebP — up to 10 MB
+                      JPEG, PNG, WebP — select multiple files at once
                     </p>
                   </div>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    multiple
                     className="sr-only"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }}
+                    onChange={(e) => { if (e.target.files?.length) handleFilesAdded(e.target.files); }}
                   />
+                </div>
+              ) : (
+                /* ── Photo thumbnail grid ── */
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  className={`transition-all duration-200 rounded-xl ${isDragging ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-zinc-900" : ""}`}
+                >
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {photos.map((photo, idx) => (
+                      <div key={`${photo.file.name}-${photo.file.size}-${idx}`} className="relative group aspect-square rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photo.previewUrl}
+                          alt={`Photo ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        {/* Remove button */}
+                        <button
+                          onClick={() => handleRemovePhoto(idx)}
+                          className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 hover:bg-black/80 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer backdrop-blur-sm"
+                          title="Remove photo"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                        {/* Index badge */}
+                        <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-sm text-white text-[10px] font-semibold">
+                          {idx + 1}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* ── Add more tile ── */}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-indigo-400 dark:hover:border-indigo-500 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/10 flex flex-col items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer group"
+                      title="Add more photos"
+                    >
+                      <Plus className="w-5 h-5 text-zinc-400 group-hover:text-indigo-500 transition-colors" />
+                      <span className="text-[10px] font-semibold text-zinc-400 group-hover:text-indigo-500 transition-colors">Add more</span>
+                    </button>
+
+                    {/* Hidden multi-file input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="sr-only"
+                      onChange={(e) => { if (e.target.files?.length) handleFilesAdded(e.target.files); }}
+                    />
+                  </div>
+
+                  {/* Drag-here hint when grid is visible */}
+                  <p className="text-xs text-zinc-400 dark:text-zinc-600 text-center mt-3">
+                    Drag & drop more photos anywhere here, or click &ldquo;Add more&rdquo;
+                  </p>
                 </div>
               )}
             </div>
@@ -452,7 +608,9 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
                 }`}
             >
               <Camera className="w-4 h-4" />
-              Analyse with AI
+              {photos.length <= 1
+                ? "Analyse with AI"
+                : `Analyse ${photos.length} Photos with AI`}
             </button>
           </div>
         )}
@@ -461,7 +619,8 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
         {/*  STATE: LOADING                                                   */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         {uiState === "loading" && (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-12 shadow-sm flex flex-col items-center gap-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-10 shadow-sm flex flex-col items-center gap-6">
+            {/* Spinner */}
             <div className="relative">
               <div className="w-20 h-20 rounded-full border-4 border-indigo-100 dark:border-indigo-950/50" />
               <div className="absolute inset-0 w-20 h-20 rounded-full border-4 border-transparent border-t-indigo-600 animate-spin" />
@@ -469,14 +628,78 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
                 <Brain className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
               </div>
             </div>
+
+            {/* Title */}
             <div className="text-center">
-              <p className="text-lg font-bold text-zinc-950 dark:text-zinc-50">Analysing Group Photo</p>
+              <p className="text-lg font-bold text-zinc-950 dark:text-zinc-50">Analysing Group Photos</p>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                AI is detecting and matching faces to enrolled students…
+                {photos.length > 1
+                  ? `Processing ${photos.length} photos one at a time…`
+                  : "AI is detecting and matching faces to enrolled students…"}
               </p>
             </div>
-            <div className="flex gap-3">
-              {["Detecting faces", "Matching embeddings", "Finalising"].map((step, i) => (
+
+            {/* Per-photo progress list */}
+            {photos.length > 0 && (
+              <div className="w-full max-w-xs space-y-2">
+                {photos.map((photo, idx) => {
+                  const status = photoStatuses[idx] ?? "pending";
+                  return (
+                    <div key={idx} className="flex items-center gap-3">
+                      {/* Status icon */}
+                      <div className="shrink-0 w-5 h-5 flex items-center justify-center">
+                        {status === "done" && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        )}
+                        {status === "error" && (
+                          <AlertCircle className="w-4 h-4 text-rose-500" />
+                        )}
+                        {(status === "processing") && (
+                          <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
+                        )}
+                        {status === "pending" && (
+                          <div className="w-3 h-3 rounded-full border-2 border-zinc-300 dark:border-zinc-600" />
+                        )}
+                      </div>
+
+                      {/* Photo name + bar */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                          Photo {idx + 1}
+                          <span className="text-zinc-400 dark:text-zinc-600 font-normal ml-1">
+                            ({photo.file.name})
+                          </span>
+                        </p>
+                        <div className="mt-1 h-1 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500
+                              ${status === "done" ? "w-full bg-emerald-500" : ""}
+                              ${status === "error" ? "w-full bg-rose-500" : ""}
+                              ${status === "processing" ? "w-2/3 bg-indigo-500 animate-pulse" : ""}
+                              ${status === "pending" ? "w-0" : ""}
+                            `}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Status label */}
+                      <span className={`text-[10px] font-semibold shrink-0
+                        ${status === "done" ? "text-emerald-600 dark:text-emerald-400" : ""}
+                        ${status === "error" ? "text-rose-600 dark:text-rose-400" : ""}
+                        ${status === "processing" ? "text-indigo-600 dark:text-indigo-400" : ""}
+                        ${status === "pending" ? "text-zinc-400" : ""}
+                      `}>
+                        {status === "done" ? "Done" : status === "error" ? "Error" : status === "processing" ? "Scanning…" : "Waiting"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Step labels */}
+            <div className="flex gap-4 flex-wrap justify-center">
+              {["Detecting faces", "Matching embeddings", "Merging results"].map((step, i) => (
                 <div key={step} className="flex items-center gap-1.5 text-xs text-zinc-400" style={{ animationDelay: `${i * 0.8}s` }}>
                   <Loader2 className="w-3 h-3 animate-spin" />
                   {step}
@@ -502,6 +725,10 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold uppercase tracking-wider">Date</p>
                 <p className="text-sm font-bold text-zinc-950 dark:text-zinc-50 mt-0.5">{formatDate(selectedDate)}</p>
               </div>
+              <div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-semibold uppercase tracking-wider">Photos</p>
+                <p className="text-sm font-bold text-zinc-950 dark:text-zinc-50 mt-0.5">{photos.length}</p>
+              </div>
               <div className="flex gap-3">
                 <StatBadge label="Present" value={presentCount} color="emerald" icon={<UserCheck className="w-3.5 h-3.5" />} />
                 <StatBadge label="Absent"  value={absentCount}  color="rose"    icon={<UserX    className="w-3.5 h-3.5" />} />
@@ -512,7 +739,7 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
             <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50">
               <Brain className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
               <p className="text-xs text-indigo-700 dark:text-indigo-300">
-                <strong>AI pre-filled</strong> based on face matches. Review and correct any misdetections below before saving.
+                <strong>AI pre-filled</strong> from {photos.length} photo{photos.length !== 1 ? "s" : ""}. A student detected in <em>any</em> photo stays Present. Review and correct misdetections below before saving.
               </p>
             </div>
 
@@ -589,7 +816,7 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
                 onClick={handleReset}
                 className="flex-1 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
               >
-                ← Retake Photo
+                ← Retake Photos
               </button>
               <button
                 onClick={handleSave}
@@ -616,7 +843,7 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
                 {presentCount} of {enrolledStudents.length} students marked present
               </p>
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                {selectedSubject?.name} · {formatDate(selectedDate)}
+                {selectedSubject?.name} · {formatDate(selectedDate)} · {photos.length} photo{photos.length !== 1 ? "s" : ""} analysed
               </p>
             </div>
             <button
