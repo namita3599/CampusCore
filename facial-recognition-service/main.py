@@ -140,16 +140,32 @@ async def lifespan(app: FastAPI):
     _process_executor = ProcessPoolExecutor(max_workers=1)
     logger.info("ProcessPoolExecutor (face-recognition) ready ✔")
 
-    # ── Open Postgres connection pool ─────────────────────────────────────────
+    # ── Open Postgres connection pool (with retry) ────────────────────────────
     logger.info("Connecting to PostgreSQL …")
     # ssl='require' is mandatory for Supabase (and most hosted Postgres).
-    _db_pool = await asyncpg.create_pool(
-        DATABASE_URL,
-        min_size=2,   # keep at least 2 warm connections
-        max_size=10,  # never open more than 10 simultaneous connections
-        ssl="require",
-    )
-    logger.info("PostgreSQL pool ready ✔")
+    # Retry up to 3 times with a 3-second delay to handle transient startup
+    # blips (e.g. brief network interruption, Supabase cold start).
+    for attempt in range(1, 4):
+        try:
+            _db_pool = await asyncpg.create_pool(
+                DATABASE_URL,
+                min_size=2,   # keep at least 2 warm connections
+                max_size=10,  # never open more than 10 simultaneous connections
+                ssl="require",
+            )
+            logger.info("PostgreSQL pool ready ✔")
+            break
+        except Exception as exc:
+            if attempt < 3:
+                logger.warning(
+                    "PostgreSQL connection attempt %d/3 failed (%s). Retrying in 3 s …",
+                    attempt, exc,
+                )
+                await asyncio.sleep(3)
+            else:
+                logger.error("PostgreSQL pool could not be created after 3 attempts: %s", exc)
+                raise  # re-raise to abort startup cleanly
+
 
     # ── Open Redis connection (optional – degrades gracefully if unavailable) ──
     logger.info("Connecting to Redis …")

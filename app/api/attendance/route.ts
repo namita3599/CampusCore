@@ -47,6 +47,156 @@ interface AttendanceEntry {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET handler: Fetch attendance records for a specific subject and date
+// ─────────────────────────────────────────────────────────────────────────────
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || (session.user.role !== "TEACHER" && session.user.role !== "ADMIN")) {
+    return NextResponse.json(
+      { error: "Unauthorised." },
+      { status: 401 },
+    );
+  }
+
+  const institutionId = session.user.institutionId;
+  if (!institutionId) {
+    return NextResponse.json({ error: "No institution context in session." }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const subjectIdStr = searchParams.get("subjectId");
+  const mode = searchParams.get("mode");
+
+  if (!subjectIdStr) {
+    return NextResponse.json(
+      { error: "Missing subjectId query parameter." },
+      { status: 400 },
+    );
+  }
+
+  const subjectId = Number(subjectIdStr);
+  if (isNaN(subjectId)) {
+    return NextResponse.json(
+      { error: "Invalid subjectId format." },
+      { status: 400 },
+    );
+  }
+
+  const db = getTenantPrisma(institutionId);
+
+  try {
+    const subject = await db.subject.findUnique({
+      where: { id: subjectId },
+      include: {
+        studentSubjects: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                rollNumber: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!subject) {
+      return NextResponse.json({ error: "Subject not found." }, { status: 404 });
+    }
+
+    const enrolledStudents = subject.studentSubjects.map((ss) => ({
+      id: ss.student.id,
+      name: ss.student.name,
+      rollNumber: ss.student.rollNumber ?? "—",
+    }));
+
+    if (mode === "month") {
+      const monthStr = searchParams.get("month"); // "YYYY-MM"
+      if (!monthStr || !/^\d{4}-\d{2}$/.test(monthStr)) {
+        return NextResponse.json(
+          { error: "Missing or invalid month parameter (expected YYYY-MM)." },
+          { status: 400 },
+        );
+      }
+
+      const [year, month] = monthStr.split("-").map(Number);
+      const startDate = new Date(Date.UTC(year, month - 1, 1));
+      const endDate = new Date(Date.UTC(year, month, 1));
+
+      const records = await db.attendanceRecord.findMany({
+        where: {
+          subjectId,
+          date: {
+            gte: startDate,
+            lt: endDate,
+          },
+        },
+        select: {
+          studentId: true,
+          date: true,
+          status: true,
+        },
+      });
+
+      return NextResponse.json({
+        students: enrolledStudents,
+        records: records.map((r) => ({
+          studentId: r.studentId,
+          date: r.date.toISOString().split("T")[0],
+          status: r.status,
+        })),
+      });
+    }
+
+    const dateStr = searchParams.get("date");
+    if (!dateStr) {
+      return NextResponse.json(
+        { error: "Missing date query parameter." },
+        { status: 400 },
+      );
+    }
+
+    const searchDate = new Date(dateStr);
+    searchDate.setUTCHours(0, 0, 0, 0);
+
+    if (isNaN(searchDate.getTime())) {
+      return NextResponse.json(
+        { error: "Invalid date format." },
+        { status: 400 },
+      );
+    }
+
+    const records = await db.attendanceRecord.findMany({
+      where: {
+        subjectId,
+        date: searchDate,
+      },
+      select: {
+        studentId: true,
+        status: true,
+      },
+    });
+
+    const recordMap = new Map(records.map((r) => [r.studentId, r.status]));
+
+    const students = enrolledStudents.map((student) => ({
+      ...student,
+      status: recordMap.get(student.id) ?? null,
+    }));
+
+    return NextResponse.json({ students });
+  } catch (err) {
+    console.error("[GET /api/attendance] DB error:", err);
+    return NextResponse.json(
+      { error: "Database error while fetching attendance records." },
+      { status: 500 },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST handler
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -67,14 +217,14 @@ export async function POST(req: NextRequest) {
   const db = getTenantPrisma(institutionId);
 
   // ── Parse and validate request body ──────────────────────────────────────
-  let body: { subjectId: unknown; date: unknown; attendance: unknown };
+  let body: { subjectId: unknown; date: unknown; attendance: unknown; isManual?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { subjectId, date, attendance } = body;
+  const { subjectId, date, attendance, isManual } = body;
 
   if (
     typeof subjectId !== "number" ||
@@ -118,16 +268,45 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Upsert all attendance records in a single transaction ─────────────────
-  // Using $transaction ensures atomicity: all rows save or none do.
-  // Prisma's upsert handles re-submission gracefully:
-  //   • If the record doesn't exist yet   → INSERT
-  //   • If it already exists for that day → UPDATE status only
+  // ── Upsert attendance records ─────────────────────────────────────────────
+  // If isManual is false/undefined (AI flow): Once marked PRESENT, stay PRESENT.
+  // If isManual is true (manual view/edit): Allow downgrading PRESENT to ABSENT.
   try {
     const entries = attendance as AttendanceEntry[];
 
+    // 1. Load any existing PRESENT records for this date + subject
+    const alreadyPresent = await db.attendanceRecord.findMany({
+      where: {
+        subjectId: Number(subjectId),
+        date: attendanceDate,
+        status: "PRESENT",
+      },
+      select: { studentId: true },
+    });
+    const alreadyPresentIds = new Set(alreadyPresent.map((r) => r.studentId));
+
+    // 2. Filter entries unless it is a manual correction
+    const entriesToWrite = isManual
+      ? entries
+      : entries.filter(
+          ({ studentId, status }) =>
+            status === "PRESENT" ||
+            !alreadyPresentIds.has(Number(studentId)),
+        );
+
+    if (entriesToWrite.length === 0) {
+      // Nothing to do — all ABSENT entries were blocked by existing PRESENT records
+      return NextResponse.json({
+        success: true,
+        saved: 0,
+        date: attendanceDate.toISOString().split("T")[0],
+        subjectId,
+        note: "No changes — all submitted ABSENT entries were blocked by existing PRESENT records.",
+      });
+    }
+
     await db.$transaction(
-      entries.map(({ studentId, status }) =>
+      entriesToWrite.map(({ studentId, status }) =>
         db.attendanceRecord.upsert({
           where: {
             studentId_subjectId_date: {
@@ -137,7 +316,8 @@ export async function POST(req: NextRequest) {
             },
           },
           update: {
-            // Teacher corrected the attendance — overwrite previous status
+            // Safe to update: either it's a PRESENT upgrade, or the student
+            // wasn't PRESENT before (ABSENT → ABSENT or ABSENT → PRESENT).
             status,
           },
           create: {

@@ -36,6 +36,7 @@ const PYTHON_SERVICE_URL =
  */
 
 import { useCallback, useRef, useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   Brain,
@@ -43,6 +44,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronDown,
+  FileText,
   Images,
   Loader2,
   Plus,
@@ -375,18 +377,27 @@ export default function TeacherAttendance({ subjects, institutionId }: TeacherAt
       <div className="max-w-3xl mx-auto space-y-6">
 
         {/* ── Page Header ──────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/30">
-            <Brain className="w-6 h-6" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/30">
+              <Brain className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-zinc-950 dark:text-zinc-50">
+                AI Attendance
+              </h1>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                Upload one or more group photos — AI marks attendance from all of them at once.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-950 dark:text-zinc-50">
-              AI Attendance
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Upload one or more group photos — AI marks attendance from all of them at once.
-            </p>
-          </div>
+          <Link
+            href="/dashboard/teacher/attendance/records"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 shadow-sm transition-colors cursor-pointer w-fit sm:w-auto"
+          >
+            <FileText className="w-4 h-4" />
+            View Attendance Records
+          </Link>
         </div>
 
         {/* ── Error banner ─────────────────────────────────────────────────── */}
